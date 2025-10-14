@@ -13,7 +13,7 @@
     :root{--bg:#000;--fg:#e8e8ea;--muted:#9aa0a6;--ring:#1f2228;--btn:#0f1217;--btn2:#14171d;--accent:#ff3b30}
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{min-height:100vh;margin:0;background:#000;color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+    body{min-height:100vh;margin:0;background:#000;color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
     .wrap{width:100%;margin:0;padding:24px 36px}
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
     .brand{font-weight:600;letter-spacing:.2px;font-size:18px}
@@ -38,7 +38,7 @@
     tr td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}
     tr td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
     a{color:var(--accent);text-decoration:none}
-    a:hover{text-decoration:underline}
+    a:hover{opacity:.9}
     .right{text-align:right}
     .accent{color:var(--accent)}
   </style>
@@ -92,7 +92,22 @@
 const SHEET_ID = "1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA";
 const SHEET_NAME = "TMS";
 const SHEET_GID = "2027199769";
-let lastSig = null, CHANGED = true, firstLoad = true;
+let lastSig = null, CHANGED = true;
+
+const NORM = k => String(k||"").toLowerCase().replace(/\s+/g,"").replace(/[_-]/g,"");
+function pickField(row, variants){
+  const keys = Object.keys(row||{});
+  const map = new Map(keys.map(k=>[NORM(k), k]));
+  for(const v of variants){
+    const nk = NORM(v);
+    if(map.has(nk)) return row[map.get(nk)];
+    // fuzzy: startsWith
+    for(const [nk2,orig] of map){
+      if(nk2.startsWith(nk)) return row[orig];
+    }
+  }
+  return undefined;
+}
 
 function csvUrls(){
   const u=[];
@@ -102,7 +117,17 @@ function csvUrls(){
 }
 function money(n){ return isNaN(n)?"—":n.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2}); }
 function numUSD(s){ if(s==null) return 0; const t=String(s).match(/-?\d+(?:\.\d+)?/g); return t?Number(t.join("")):0; }
-function toDate(s){ if(!s) return null; const d=new Date(s); if(!isNaN(d)) return d; const m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(String(s).trim()); if(m){ const mm=+m[1]-1,dd=+m[2],yy=+m[3]<100?2000+ +m[3]:+m[3]; return new Date(yy,mm,dd);} return null; }
+function toDate(s){
+  if(!s) return null;
+  const t = String(s).trim();
+  let d = new Date(t);
+  if(!isNaN(d)) return d;
+  let m = /(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t);
+  if(m){ const mm=+m[1]-1,dd=+m[2],yy=+m[3]<100?2000+ +m[3]:+m[3]; return new Date(yy,mm,dd); }
+  m = /(\d{4})-(\d{2})-(\d{2})/.exec(t);
+  if(m){ return new Date(+m[1], +m[2]-1, +m[3]); }
+  return null;
+}
 const byDateDesc=(a,b)=> (b._date?.getTime()||0)-(a._date?.getTime()||0);
 
 let rowsAll=[], rows=[]; let trendChart;
@@ -111,7 +136,7 @@ function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charC
 function normalizeLink(s){ if(!s) return ""; s = String(s).trim(); if(/^https?:\/\//i.test(s)) return s; return ""; }
 
 async function fetchRows(){
-  rowsAll=[]; let ok=false, lastErr="";
+  rowsAll=[]; let ok=false, lastErr=""; let rawCount=0;
   for(const base of csvUrls()){
     try{
       const url = base + (base.includes('?')?'&':'?') + 'v=' + Date.now();
@@ -122,18 +147,28 @@ async function fetchRows(){
       if(lastSig && sig===lastSig){ CHANGED=false; ok=true; break; }
       lastSig=sig; CHANGED=true;
       const parsed = Papa.parse(txt,{header:true, dynamicTyping:false, skipEmptyLines:true});
-      rowsAll = (parsed.data||[]).filter(x=>x && Object.keys(x).length)
-        .map(r=>({ Date:r['Date'], Asset:r['Asset'], Repair:r['Repair'],
-                   Total:numUSD(r['Total Amount']||r['Total']||r['Amount']),
-                   InvoiceLink: normalizeLink(r['InvoiceLink']||r['Invoice']||r['Link']),
-                   PaidBy:r['PaidBy']||r['Paid By'], Comments:r['Comments'],
-                   ReportedBy:r['ReportedBy']||r['Reporter'], _date: toDate(r['Date'])}))
-        .filter(r=>r._date);
+      const data = (parsed.data||[]).filter(x=>x && Object.keys(x).length);
+      rawCount = data.length;
+      rowsAll = data.map(r=>{
+        const DateVal = pickField(r, ['Date']);
+        const AssetVal = pickField(r, ['Asset']);
+        const RepairVal = pickField(r, ['Repair','Description']);
+        const TotalVal = pickField(r, ['Total Amount','Total','Amount']);
+        const PaidByVal = pickField(r, ['PaidBy','Paid By']);
+        const ReportedByVal = pickField(r, ['ReportedBy','Reporter']);
+        const InvoiceLinkVal = pickField(r, ['InvoiceLink','Invoice','Link']);
+        const CommentsVal = pickField(r, ['Comments','Notes']);
+        const d = toDate(DateVal);
+        return { Date:DateVal, Asset:AssetVal, Repair:RepairVal, Total:numUSD(TotalVal),
+                 InvoiceLink: normalizeLink(InvoiceLinkVal), PaidBy:PaidByVal, Comments:CommentsVal,
+                 ReportedBy:ReportedByVal, _date:d };
+      }).filter(r=>r._date);
       ok=true; break;
     }catch(e){ lastErr = e?.message || "fetch error"; }
   }
   const st = document.getElementById('status');
-  if(!ok){ if(st) st.textContent = "Error: " + (lastErr||"no CSV"); rowsAll=[]; CHANGED=true; } else { if(st) st.textContent="OK"; }
+  if(!ok){ if(st) st.textContent = "Error: " + (lastErr||"no CSV"); rowsAll=[]; CHANGED=true; }
+  else { if(st) st.textContent = `Rows: ${rowsAll.length}`; console.log('Parsed rows', rowsAll.slice(0,3)); }
 }
 
 function getRange(){ const b=document.querySelector('#rangeSeg .active'); return b?b.dataset.range:'30'; }
