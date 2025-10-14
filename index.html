@@ -92,9 +92,12 @@
 const SHEET_ID = "1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA";
 const SHEET_NAME = "TMS";
 const SHEET_GID = "2027199769";
-let lastSig = null, CHANGED = true;
+const FULL_REFRESH_MS = 5*60*1000;
+const CHANGE_WATCH_MS = 30000;
 
+let lastSig = null, rowsCache = [], busy=false;
 const NORM = k => String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
+
 function pickField(row, variants){
   const keys = Object.keys(row||{});
   const map = new Map(keys.map(k=>[NORM(k), k]));
@@ -102,7 +105,7 @@ function pickField(row, variants){
     const nk = NORM(v);
     if(map.has(nk)) return row[map.get(nk)];
     for(const [nk2,orig] of map){
-      if(nk2.includes(nk) || nk.includes(nk2)) return row[orig];
+      if(nk2.indexOf(nk) !== -1 || nk.indexOf(nk2) !== -1) return row[orig];
     }
   }
   return undefined;
@@ -134,53 +137,37 @@ let rowsAll=[], rows=[]; let trendChart;
 function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
 function normalizeLink(s){ if(!s) return ""; s = String(s).trim(); if(/^https?:\/\//i.test(s)) return s; return ""; }
 
-async function fetchRows(){
-  rowsAll=[]; let ok=false, lastErr="";
+async function downloadCSVText(){
   for(const base of csvUrls()){
     try{
       const url = base + (base.includes('?')?'&':'?') + 'v=' + Date.now();
       const resp = await fetch(url,{cache:'no-store'});
       const txt = await resp.text();
-      if(/^\s*</.test(txt)){ lastErr="Sheet not public or wrong URL"; continue; }
-      const sig = strHash(txt);
-      if(lastSig && sig===lastSig){ CHANGED=false; ok=true; break; }
-      lastSig=sig; CHANGED=true;
-      const parsed = Papa.parse(txt,{header:true, dynamicTyping:false, skipEmptyLines:true});
-      const data = (parsed.data||[]).filter(x=>x && Object.keys(x).length);
-      rowsAll = data.map(r=>{
-        const DateVal = pickField(r, ['Date']);
-        const AssetVal = pickField(r, ['Asset']);
-        const RepairVal = pickField(r, ['Repair','Description']);
-        const TotalVal = pickField(r, ['Total Amount','Total','Amount']);
-        const PaidByVal = pickField(r, ['PaidBy','Paid By']);
-        const ReportedByVal = pickField(r, ['ReportedBy','Reporter']);
-        const InvoiceLinkVal = pickField(r, ['InvoiceLink','Invoice','Link']);
-        const CommentsVal = pickField(r, ['Comments','Notes']);
-        const d = toDate(DateVal);
-        return { Date:DateVal, Asset:AssetVal, Repair:RepairVal, Total:numUSD(TotalVal),
-                 InvoiceLink: normalizeLink(InvoiceLinkVal), PaidBy:PaidByVal, Comments:CommentsVal,
-                 ReportedBy:ReportedByVal, _date:d };
-      }).filter(r=>r._date);
-      ok=true; break;
-    }catch(e){ lastErr = e?.message || "fetch error"; }
+      if(/^\s*</.test(txt)) continue;
+      return txt;
+    }catch(e){}
   }
-  const st = document.getElementById('status');
-  if(!ok){ if(st) st.textContent = "Error: " + (lastErr||"no CSV"); rowsAll=[]; CHANGED=true; }
-  else { if(st) st.textContent = `Rows: ${rowsAll.length}`; }
+  throw new Error("no CSV");
 }
 
-function getRange(){ const b=document.querySelector('#rangeSeg .active'); return b?b.dataset.range:'30'; }
-function applyFilters(){
-  const rv=getRange(); const q=(document.getElementById('assetSearch').value||'').trim().toLowerCase();
-  const now=new Date(); let from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==='7'?7:30));
-  function match(r){
-    if(!q) return true;
-    const a=String(r.Asset||'').toLowerCase(), rep=String(r.Repair||'').toLowerCase();
-    const ds=r._date.toLocaleDateString().toLowerCase();
-    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
-    return a.includes(q)||rep.includes(q)||ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);
-  }
-  rows = rowsAll.filter(r=>r._date>=from && match(r));
+function parseRows(txt){
+  const parsed = Papa.parse(txt,{header:true, dynamicTyping:false, skipEmptyLines:true});
+  const data = (parsed.data||[]).filter(x=>x && Object.keys(x).length);
+  const list = data.map(r=>{
+    const DateVal = pickField(r, ['Date']);
+    const AssetVal = pickField(r, ['Asset']);
+    const RepairVal = pickField(r, ['Repair','Description']);
+    const TotalVal = pickField(r, ['Total Amount','Total','Amount']);
+    const PaidByVal = pickField(r, ['PaidBy','Paid By']);
+    const ReportedByVal = pickField(r, ['ReportedBy','Reporter']);
+    const InvoiceLinkVal = pickField(r, ['InvoiceLink','Invoice','Link']);
+    const CommentsVal = pickField(r, ['Comments','Notes']);
+    const d = toDate(DateVal);
+    return { Date:DateVal, Asset:AssetVal, Repair:RepairVal, Total:numUSD(TotalVal),
+             InvoiceLink: normalizeLink(InvoiceLinkVal), PaidBy:PaidByVal, Comments:CommentsVal,
+             ReportedBy:ReportedByVal, _date:d };
+  }).filter(r=>r._date);
+  return list;
 }
 
 function renderKPIs(){
@@ -196,21 +183,26 @@ function renderChart(){
   const el=document.getElementById('chartTrend'); const ctx=el.getContext('2d');
   if(trendChart){ try{trendChart.destroy()}catch(e){} }
   const s=toDaily(rows);
-  const gradLine=ctx.createLinearGradient(0,0,220,0);
-  gradLine.addColorStop(0,'#ff3b30');
-  gradLine.addColorStop(1,'#b5140b');
-  const gradFill=ctx.createLinearGradient(0,0,0,240);
-  gradFill.addColorStop(0,'rgba(255,59,48,.22)');
-  gradFill.addColorStop(1,'rgba(255,255,255,0)');
-  trendChart=new Chart(ctx,{
-    type:'line',
-    data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
-    options:{
-      responsive:true,maintainAspectRatio:false,animation:{duration:800},
-      plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>'$'+Number(c.parsed.y).toLocaleString()}}},
-      scales:{x:{ticks:{color:'#9aa0a6'},grid:{display:false}},y:{ticks:{color:'#9aa0a6',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,.06)'}}}
-    }
-  });
+  const gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,'#ff3b30'); gradLine.addColorStop(1,'#b5140b');
+  const gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,'rgba(255,59,48,.22)'); gradFill.addColorStop(1,'rgba(255,255,255,0)');
+  trendChart=new Chart(ctx,{type:'line',data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>'$'+Number(c.parsed.y).toLocaleString()}}},
+    scales:{x:{ticks:{color:'#9aa0a6'},grid:{display:false}},y:{ticks:{color:'#9aa0a6',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,.06)'}}}});
+}
+
+const byDateDesc=(a,b)=> (b._date?.getTime()||0)-(a._date?.getTime()||0);
+function applyFilters(){
+  const rv=document.querySelector('#rangeSeg .active')?.dataset.range || '30';
+  const q=(document.getElementById('assetSearch').value||'').trim().toLowerCase();
+  const now=new Date(); const from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==='7'?7:30));
+  function match(r){
+    if(!q) return true;
+    const a=String(r.Asset||'').toLowerCase(), rep=String(r.Repair||'').toLowerCase();
+    const ds=r._date.toLocaleDateString().toLowerCase();
+    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
+    return a.includes(q)||rep.includes(q)||ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);
+  }
+  rows = rowsAll.filter(r=>r._date>=from && match(r));
 }
 
 function renderTable(){
@@ -229,25 +221,49 @@ function renderTable(){
   });
 }
 
-async function refreshAll(){
-  const st=document.getElementById('status'); if(st) st.textContent='Loading…';
-  await fetchRows();
-  applyFilters(); renderKPIs(); renderChart(); renderTable();
-  if(st) st.textContent = 'Updated '+new Date().toLocaleTimeString();
+async function refreshAll(force=false){
+  if(busy) return; busy=true;
+  const st=document.getElementById('status'); if(st) st.textContent= force?'Refreshing…':'Loading…';
+  try{
+    const txt = await downloadCSVText();
+    const sig = strHash(txt);
+    if(force || lastSig!==sig){
+      lastSig=sig;
+      const parsed = parseRows(txt);
+      if(parsed.length){ rowsAll = rowsCache = parsed; }
+      applyFilters(); renderKPIs(); renderChart(); renderTable();
+      if(st) st.textContent='Updated '+new Date().toLocaleTimeString();
+    }else{
+      if(st) st.textContent='No changes '+new Date().toLocaleTimeString();
+    }
+  }catch(e){
+    if(rowsCache.length){ rowsAll = rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable(); if(st) st.textContent='Offline • showing last data'; }
+    else{ if(st) st.textContent='Error loading CSV'; }
+  }finally{ busy=false; }
 }
-async function live(){ await refreshAll(); setTimeout(live, 2000); }
 
-document.getElementById('refreshBtn').addEventListener('click', refreshAll);
-document.getElementById('rangeSeg').addEventListener('click', e=>{
-  const b=e.target.closest('button'); if(!b) return;
-  document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('active'));
-  b.classList.add('active'); applyFilters(); renderKPIs(); renderChart(); renderTable();
-});
+async function watchChanges(){
+  try{
+    const txt = await downloadCSVText();
+    const sig = strHash(txt);
+    if(lastSig && sig!==lastSig){ await refreshAll(true); }
+    // else no-op
+  }catch(e){ /* ignore */ }
+  setTimeout(watchChanges, CHANGE_WATCH_MS);
+}
+
+document.getElementById('refreshBtn').addEventListener('click', ()=>refreshAll(true));
+document.getElementById('rangeSeg').addEventListener('click', e=>{ const b=e.target.closest('button'); if(!b) return; document.querySelectorAll('#rangeSeg button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); applyFilters(); renderKPIs(); renderChart(); renderTable(); });
 document.getElementById('assetSearch').addEventListener('input', ()=>{ applyFilters(); renderKPIs(); renderChart(); renderTable(); });
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') refreshAll(true); });
 
 window.addEventListener('DOMContentLoaded', async ()=>{
-  for(let i=0;i<30 && (typeof Papa==='undefined' || typeof Chart==='undefined'); i++) await new Promise(r=>setTimeout(r,150));
-  await refreshAll(); live();
+  // initial
+  await refreshAll(true);
+  // full refresh every 5 minutes
+  setInterval(()=>refreshAll(true), FULL_REFRESH_MS);
+  // change watcher
+  setTimeout(watchChanges, CHANGE_WATCH_MS);
 });
 </script>
 </body>
