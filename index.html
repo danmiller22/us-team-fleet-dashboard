@@ -47,7 +47,7 @@
     .right{text-align:right}
     [data-fade]{opacity:0;transform:translateY(4px);animation:fadeUp .35s ease forwards}
     @keyframes fadeUp{to{opacity:1;transform:none}}
-    .hero{height:92px;border-bottom-left-radius:18px;border-bottom-right-radius:18px;background:conic-gradient(from 210deg at 85% -10%, var(--teal), var(--violet), var(--accent), var(--accent-2), var(--teal));filter:blur(.4px);opacity:.9;box-shadow:0 12px 60px rgba(0,0,0,.55) inset, 0 10px 40px rgba(0,0,0,.45)}
+    .hero{height:92px;border-bottom-left-radius:18px;border-bottom-right-radius:18px;background:conic-gradient(from 210deg at 85% -10%, #00d0ff, #a78bfa, #ff7a59, #ffb020, #00d0ff);filter:blur(.4px);opacity:.9;box-shadow:0 12px 60px rgba(0,0,0,.55) inset, 0 10px 40px rgba(0,0,0,.45)}
   </style>
 </head>
 <body>
@@ -113,14 +113,23 @@
 <script>
 const SHEET_ID = "1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA";
 const SHEET_NAME = "TMS";
-const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+const SHEET_GID = "2027199769";
 const AUTO_REFRESH_MS = 300000;
 let lastSig = null, firstLoad = true, CHANGED = true;
 function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
 
+function buildUrls(){
+  const urls = [];
+  if(SHEET_GID && /^\d+$/.test(SHEET_GID)){
+    urls.push(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`);
+  }
+  urls.push(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`);
+  return urls;
+}
+
 function money(n){ return isNaN(n)?"—":n.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2}); }
-function numUSD(s){ if(s==null) return 0; const t=String(s).match(/-?\\d+(?:\\.\\d+)?/g); return t?Number(t.join("")):0; }
-function toDate(s){ if(!s) return null; const d=new Date(s); if(!isNaN(d)) return d; const m=/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{2,4})/.exec(String(s).trim()); if(m){ const mm=+m[1]-1,dd=+m[2],yy=+m[3]<100?2000+ +m[3]:+m[3]; return new Date(yy,mm,dd);} return null; }
+function numUSD(s){ if(s==null) return 0; const t=String(s).match(/-?\d+(?:\.\d+)?/g); return t?Number(t.join("")):0; }
+function toDate(s){ if(!s) return null; const d=new Date(s); if(!isNaN(d)) return d; const m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(String(s).trim()); if(m){ const mm=+m[1]-1,dd=+m[2],yy=+m[3]<100?2000+ +m[3]:+m[3]; return new Date(yy,mm,dd);} return null; }
 const byDateDesc=(a,b)=> (b._date?.getTime()||0)-(a._date?.getTime()||0);
 
 let rowsAll=[], rows=[];
@@ -130,26 +139,36 @@ const gradFill=(ctx)=>{ const g=ctx.createLinearGradient(0,0,0,240); g.addColorS
 const gradLine=(ctx)=>{ const g=ctx.createLinearGradient(0,0,220,0); g.addColorStop(0,'#ff7a59'); g.addColorStop(1,'#ffb020'); return g; };
 
 async function fetchRows(){
-  try{
-    const url = CSV_URL + '&v=' + Date.now();
-    const resp = await fetch(url,{cache:'no-store'});
-    const csv = await resp.text();
-    const sig = strHash(csv);
-    if(lastSig && sig === lastSig){ CHANGED = false; return; }
-    lastSig = sig; CHANGED = true;
-    const parsed = Papa.parse(csv,{header:true, dynamicTyping:false, skipEmptyLines:true});
-    rowsAll = (parsed.data||[]).filter(r=>r && Object.keys(r).length>0).map(r=>({
-      Date:r['Date'],
-      Asset:r['Asset'],
-      Repair:r['Repair'],
-      Total:numUSD(r['Total Amount']||r['Total']||r['Amount']),
-      InvoiceLink:r['InvoiceLink']||r['Invoice']||r['Link'],
-      PaidBy:r['PaidBy']||r['Paid By'],
-      Comments:r['Comments'],
-      ReportedBy:r['ReportedBy']||r['Reporter'],
-      _date: toDate(r['Date'])
-    })).filter(r=>r._date);
-  }catch(e){ rowsAll=[]; CHANGED = true; }
+  rowsAll = [];
+  const urls = buildUrls();
+  let ok = false;
+  for(const baseUrl of urls){
+    try{
+      const url = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'v=' + Date.now();
+      const resp = await fetch(url,{cache:'no-store'});
+      const text = await resp.text();
+      const looksHTML = /^\s*</.test(text);
+      if(looksHTML) continue;
+      const sig = strHash(text);
+      if(lastSig && sig === lastSig){ CHANGED = false; ok = true; break; }
+      lastSig = sig; CHANGED = true;
+      const parsed = Papa.parse(text,{header:true, dynamicTyping:false, skipEmptyLines:true});
+      rowsAll = (parsed.data||[]).filter(r=>r && Object.keys(r).length>0).map(r=>({
+        Date:r['Date'],
+        Asset:r['Asset'],
+        Repair:r['Repair'],
+        Total:numUSD(r['Total Amount']||r['Total']||r['Amount']),
+        InvoiceLink:r['InvoiceLink']||r['Invoice']||r['Link'],
+        PaidBy:r['PaidBy']||r['Paid By'],
+        Comments:r['Comments'],
+        ReportedBy:r['ReportedBy']||r['Reporter'],
+        _date: toDate(r['Date'])
+      })).filter(r=>r._date);
+      ok = true;
+      break;
+    }catch(e){}
+  }
+  if(!ok){ rowsAll=[]; CHANGED=true; }
   if(!rowsAll.length){ const today=new Date(); for(let i=0;i<14;i++){ const d=new Date(today); d.setDate(today.getDate()-i); rowsAll.push({Date:d.toLocaleDateString(), Asset:`unit ${2300+i}`, Repair:'demo repair', Total:Math.round(50+Math.random()*500), PaidBy:(i%3?'company':'driver'), ReportedBy:'Dan', _date:d, InvoiceLink:''}); } }
 }
 
