@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>US Team Fleet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    :root{--bg:#0b0f14;--fg:#e6e8ef;--muted:#98a2b3;--card:#0e131a;--ring:#1b2230;--accent:#ff7a59;--accent-2:#ffb020;--teal:#00d0ff;--violet:#a78bfa}
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{min-height:100vh;margin:0;background:radial-gradient(1200px 680px at 8% -10%, #1a2230 0%, transparent 55%),radial-gradient(1000px 600px at 110% 0%, #121821 0%, transparent 45%),linear-gradient(180deg,#0b0f14 0%,#0b0f14 100%);color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;letter-spacing:.1px}
+    .wrap{max-width:1200px;margin:28px auto;padding:0 16px}
+    header{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+    .brand{font-weight:600;letter-spacing:.2px;font-size:18px}
+    .muted{color:var(--muted)}
+    .row{display:grid;gap:14px}
+    .row.kpi{grid-template-columns:repeat(3,minmax(0,1fr))}
+    @media (max-width:980px){.row.kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
+    @media (max-width:560px){.row.kpi{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:18px;padding:16px;backdrop-filter:saturate(140%) blur(6px);box-shadow:0 12px 40px rgba(0,0,0,.35), inset 0 0 0 1px rgba(255,255,255,.02)}
+    .kpi .value{font-size:26px;font-weight:600;margin-top:8px}
+    .controls{display:flex;gap:10px;align-items:center}
+    .seg{display:flex;background:#0e131a;border:1px solid var(--ring);border-radius:12px;padding:4px;gap:4px}
+    .seg button{border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;font-weight:600;cursor:pointer}
+    .seg button.active{background:linear-gradient(180deg,#1b2230,#141a22);color:var(--fg)}
+    .seg button:hover{color:#fff}
+    input,button{appearance:none;border:1px solid var(--ring);background:linear-gradient(180deg,#1a1c24,#13141b);color:#e6e8ef;border-radius:12px;padding:8px 12px;font-weight:600;outline:none}
+    button{transition:transform .15s ease, box-shadow .15s ease}
+    button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(0,0,0,.35)}
+    .pill{font-size:12px;color:var(--muted)}
+    .panel{display:grid;grid-template-columns:1fr;gap:14px;margin-top:14px}
+    @media (min-width:1100px){.panel{grid-template-columns:1.45fr .8fr}}
+    canvas{background:linear-gradient(180deg,#0c1117,#0b0f14);border:1px solid var(--ring);border-radius:18px;padding:8px;box-shadow:0 12px 24px rgba(0,0,0,.35) inset, inset 0 0 0 1px rgba(255,255,255,.02)}
+    table{width:100%;border-collapse:separate;border-spacing:0 10px}
+    th,td{text-align:left;padding:12px 14px}
+    th{font-size:12px;color:var(--muted);font-weight:600}
+    tr{background:linear-gradient(180deg,#11131a,#0e1016);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
+    tr td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}
+    tr td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .right{text-align:right}
+    [data-fade]{opacity:0;transform:translateY(4px);animation:fadeUp .35s ease forwards}
+    @keyframes fadeUp{to{opacity:1;transform:none}}
+    .hero{height:92px;border-bottom-left-radius:18px;border-bottom-right-radius:18px;background:conic-gradient(from 210deg at 85% -10%, var(--teal), var(--violet), var(--accent), var(--accent-2), var(--teal));filter:blur(.4px);opacity:.9;box-shadow:0 12px 60px rgba(0,0,0,.55) inset, 0 10px 40px rgba(0,0,0,.45)}
+  </style>
+</head>
+<body>
+  <div class="hero"></div>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="brand">US Team Fleet</div>
+        <div class="muted">Live dashboard from Google Sheet</div>
+      </div>
+      <div class="controls">
+        <div class="seg" id="rangeSeg">
+          <button data-range="7">7d</button>
+          <button data-range="30" class="active">30d</button>
+          <button data-range="90">90d</button>
+          <button data-range="ytd">YTD</button>
+          <button data-range="all">All</button>
+        </div>
+        <input id="assetSearch" placeholder="Filter by amount, date, asset, repair"/>
+        <button id="refreshBtn">Refresh</button>
+        <div class="pill" id="status">—</div>
+      </div>
+    </header>
+
+    <section class="row kpi">
+      <div class="card kpi"><div class="muted">Entries</div><div class="value" id="kpi-total">—</div></div>
+      <div class="card kpi"><div class="muted">Spend this month</div><div class="value" id="kpi-month">—</div></div>
+      <div class="card kpi"><div class="muted">Spend last 7 days</div><div class="value" id="kpi-week">—</div></div>
+    </section>
+
+    <section class="panel">
+      <div class="col-left" style="display:grid;gap:14px">
+        <canvas id="chartTrend" height="200" data-fade></canvas>
+        <div class="card" data-fade>
+          <div class="muted" style="margin-bottom:8px">Latest entries</div>
+          <div style="overflow:auto">
+            <table id="table">
+              <thead>
+                <tr>
+                  <th style="min-width:110px">Date</th>
+                  <th style="min-width:150px">Asset</th>
+                  <th>Repair</th>
+                  <th class="right" style="min-width:110px">Total</th>
+                  <th style="min-width:110px">PaidBy</th>
+                  <th style="min-width:120px">ReportedBy</th>
+                  <th style="min-width:140px">Invoice Link</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <aside class="col-right" style="display:grid;gap:14px">
+        <div class="card" data-fade>
+          <div class="muted" style="margin-bottom:8px">Top Assets by Spend</div>
+          <canvas id="chartDonut" height="280"></canvas>
+        </div>
+      </aside>
+    </section>
+  </div>
+
+<script>
+const SHEET_ID = "<PUT_YOUR_SHEET_ID_HERE>";
+const SHEET_NAME = "TMS";
+const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(SHEET_NAME)}`;
+const AUTO_REFRESH_MS = 300000;
+let lastSig = null, firstLoad = true, CHANGED = true;
+function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
+
+function money(n){ return isNaN(n)?"—":n.toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2}); }
+function numUSD(s){ if(s==null) return 0; const t=String(s).match(/-?\\d+(?:\\.\\d+)?/g); return t?Number(t.join("")):0; }
+function toDate(s){ if(!s) return null; const d=new Date(s); if(!isNaN(d)) return d; const m=/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{2,4})/.exec(String(s).trim()); if(m){ const mm=+m[1]-1,dd=+m[2],yy=+m[3]<100?2000+ +m[3]:+m[3]; return new Date(yy,mm,dd);} return null; }
+const byDateDesc=(a,b)=> (b._date?.getTime()||0)-(a._date?.getTime()||0);
+
+let rowsAll=[], rows=[];
+let trendChart, donutChart;
+
+const gradFill=(ctx)=>{ const g=ctx.createLinearGradient(0,0,0,240); g.addColorStop(0,'rgba(255,122,89,.34)'); g.addColorStop(.6,'rgba(255,176,32,.16)'); g.addColorStop(1,'rgba(255,255,255,0)'); return g; };
+const gradLine=(ctx)=>{ const g=ctx.createLinearGradient(0,0,220,0); g.addColorStop(0,'#ff7a59'); g.addColorStop(1,'#ffb020'); return g; };
+
+async function fetchRows(){
+  try{
+    const url = CSV_URL + '&v=' + Date.now();
+    const resp = await fetch(url,{cache:'no-store'});
+    const csv = await resp.text();
+    const sig = strHash(csv);
+    if(lastSig && sig === lastSig){ CHANGED = false; return; }
+    lastSig = sig; CHANGED = true;
+    const parsed = Papa.parse(csv,{header:true, dynamicTyping:false, skipEmptyLines:true});
+    rowsAll = (parsed.data||[]).filter(r=>r && Object.keys(r).length>0).map(r=>({
+      Date:r['Date'],
+      Asset:r['Asset'],
+      Repair:r['Repair'],
+      Total:numUSD(r['Total Amount']||r['Total']||r['Amount']),
+      InvoiceLink:r['InvoiceLink']||r['Invoice']||r['Link'],
+      PaidBy:r['PaidBy']||r['Paid By'],
+      Comments:r['Comments'],
+      ReportedBy:r['ReportedBy']||r['Reporter'],
+      _date: toDate(r['Date'])
+    })).filter(r=>r._date);
+  }catch(e){ rowsAll=[]; CHANGED = true; }
+  if(!rowsAll.length){ const today=new Date(); for(let i=0;i<14;i++){ const d=new Date(today); d.setDate(today.getDate()-i); rowsAll.push({Date:d.toLocaleDateString(), Asset:`unit ${2300+i}`, Repair:'demo repair', Total:Math.round(50+Math.random()*500), PaidBy:(i%3?'company':'driver'), ReportedBy:'Dan', _date:d, InvoiceLink:''}); } }
+}
+
+function getRangeValue(){ const act=document.querySelector('#rangeSeg button.active'); return act?act.getAttribute('data-range'):'30'; }
+function applyFilters(){
+  const rv=getRangeValue(); const qRaw=(document.getElementById('assetSearch').value||'').trim(); const q=qRaw.toLowerCase();
+  const now=new Date(); let from=new Date(0);
+  if(rv==='7') from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  else if(rv==='30') from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-30);
+  else if(rv==='90') from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-90);
+  else if(rv==='ytd') from=new Date(now.getFullYear(),0,1);
+  function match(r){
+    if(!q) return true;
+    const amtStr = money(r.Total).toLowerCase();
+    const amtNum = String(r.Total);
+    const dateStr = r._date.toLocaleDateString().toLowerCase();
+    const asset = String(r.Asset||'').toLowerCase();
+    const repair = String(r.Repair||'').toLowerCase();
+    return asset.includes(q) || repair.includes(q) || dateStr.includes(q) || amtStr.includes(q) || amtNum.includes(q);
+  }
+  rows = rowsAll.filter(r=> r._date>=from && match(r));
+}
+
+function renderKPIs(){
+  const now=new Date(); const ms=new Date(now.getFullYear(),now.getMonth(),1); const ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  let monthSpend=0, weekSpend=0;
+  for(const r of rows){ if(r._date>=ms) monthSpend+=r.Total; if(r._date>=ws) weekSpend+=r.Total; }
+  document.getElementById('kpi-total').textContent = rows.length.toLocaleString();
+  document.getElementById('kpi-month').textContent = money(monthSpend);
+  document.getElementById('kpi-week').textContent  = money(weekSpend);
+}
+
+function renderTable(){
+  const tbody=document.querySelector('#table tbody'); tbody.innerHTML='';
+  rows.slice().sort(byDateDesc).slice(0,80).forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML = `<td>${r._date.toLocaleDateString()}</td>`+
+                   `<td>${r.Asset||''}</td>`+
+                   `<td>${r.Repair||''}</td>`+
+                   `<td class="right">${money(r.Total)}</td>`+
+                   `<td>${r.PaidBy||''}</td>`+
+                   `<td>${r.ReportedBy||''}</td>`+
+                   `<td>${r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:''}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function toDaily(rs){ const m=new Map(); for(const r of rs){ const d=r._date.toISOString().slice(0,10); m.set(d,(m.get(d)||0)+r.Total); } const labels=[...m.keys()].sort(); return {labels, data:labels.map(k=>m.get(k))}; }
+function topAssets(rs,n){ const m=new Map(); for(const r of rs){ const k=String(r.Asset||'').trim(); if(!k) continue; m.set(k,(m.get(k)||0)+r.Total);} return [...m.entries()].sort((a,b)=>b[1]-a[1]).slice(0,n||6); }
+
+function renderCharts(){
+  const ct1=document.getElementById('chartTrend')?.getContext('2d');
+  const ct3=document.getElementById('chartDonut')?.getContext('2d');
+  if(!ct1||!ct3||!window.Chart) return;
+  if(trendChart){ try{trendChart.destroy()}catch(e){} }
+  if(donutChart){ try{donutChart.destroy()}catch(e){} }
+  const s=toDaily(rows);
+  trendChart = new Chart(ct1, { type:'line', data:{ labels:s.labels, datasets:[{ data:s.data, fill:true, tension:.35, borderWidth:2, borderColor:gradLine(ct1), backgroundColor:gradFill(ct1) }]}, options:{ responsive:true, animation:{duration:800,easing:'cubicBezier(.22,.61,.36,1)'}, plugins:{ legend:{display:false}, tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10, callbacks:{ label:c=>'$'+Number(c.parsed.y).toLocaleString() } } }, scales:{ x:{ ticks:{color:'#9aa0a6'}, grid:{display:false} }, y:{ ticks:{ color:'#9aa0a6', callback:v=>'$'+v.toLocaleString() }, grid:{ color:'rgba(255,255,255,.06)' } } } } });
+  const ta=topAssets(rows,6); const l3=ta.map(x=>x[0]), d3=ta.map(x=>x[1]);
+  donutChart = new Chart(ct3, { type:'doughnut', data:{ labels:l3, datasets:[{ data:d3, borderWidth:2, cutout:'70%', hoverOffset:6, backgroundColor:['#ff7a59','#ffb020','#00d0ff','#a78bfa','#22c55e','#ef4444'].slice(0,d3.length) }] }, options:{ plugins:{ legend:{ display:true, labels:{ color:'#cbd5e1' } }, tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10, callbacks:{ label:c=>c.label+': '+money(c.parsed) } } }, animation:{duration:800} } });
+}
+
+async function refreshAll(){ const st=document.getElementById('status'); const t0=Date.now(); if(st) st.textContent='Live • polling'; await fetchRows(); if(firstLoad || CHANGED){ applyFilters(); renderKPIs(); renderCharts(); renderTable(); firstLoad=false; if(st) st.textContent='Updated '+new Date().toLocaleTimeString()+' • '+(Date.now()-t0)+' ms'; } }
+async function live(){ await refreshAll(); setTimeout(live, 2000); }
+
+document.getElementById('refreshBtn').addEventListener('click', refreshAll);
+const seg=document.getElementById('rangeSeg'); if(seg){ seg.addEventListener('click', (e)=>{ const b=e.target.closest('button'); if(!b) return; seg.querySelectorAll('button').forEach(x=>x.classList.remove('active')); b.classList.add('active'); applyFilters(); renderKPIs(); renderCharts(); renderTable(); }); }
+document.getElementById('assetSearch').addEventListener('input', ()=>{ applyFilters(); renderKPIs(); renderCharts(); renderTable(); });
+
+window.addEventListener('DOMContentLoaded', async ()=>{
+  for(let i=0;i<30 && (typeof Papa==='undefined' || typeof Chart==='undefined'); i++) await new Promise(r=>setTimeout(r,150));
+  await refreshAll();
+  live();
+});
+</script>
+</body>
+</html>
