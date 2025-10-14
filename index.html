@@ -94,16 +94,15 @@ const SHEET_NAME = "TMS";
 const SHEET_GID = "2027199769";
 let lastSig = null, CHANGED = true;
 
-const NORM = k => String(k||"").toLowerCase().replace(/\s+/g,"").replace(/[_-]/g,"");
+const NORM = k => String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
 function pickField(row, variants){
   const keys = Object.keys(row||{});
   const map = new Map(keys.map(k=>[NORM(k), k]));
   for(const v of variants){
     const nk = NORM(v);
     if(map.has(nk)) return row[map.get(nk)];
-    // fuzzy: startsWith
     for(const [nk2,orig] of map){
-      if(nk2.startsWith(nk)) return row[orig];
+      if(nk2.indexOf(nk) !== -1 || nk.indexOf(nk2) !== -1) return row[orig];
     }
   }
   return undefined;
@@ -136,7 +135,7 @@ function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charC
 function normalizeLink(s){ if(!s) return ""; s = String(s).trim(); if(/^https?:\/\//i.test(s)) return s; return ""; }
 
 async function fetchRows(){
-  rowsAll=[]; let ok=false, lastErr=""; let rawCount=0;
+  rowsAll=[]; let ok=false, lastErr="";
   for(const base of csvUrls()){
     try{
       const url = base + (base.includes('?')?'&':'?') + 'v=' + Date.now();
@@ -148,7 +147,6 @@ async function fetchRows(){
       lastSig=sig; CHANGED=true;
       const parsed = Papa.parse(txt,{header:true, dynamicTyping:false, skipEmptyLines:true});
       const data = (parsed.data||[]).filter(x=>x && Object.keys(x).length);
-      rawCount = data.length;
       rowsAll = data.map(r=>{
         const DateVal = pickField(r, ['Date']);
         const AssetVal = pickField(r, ['Asset']);
@@ -168,7 +166,7 @@ async function fetchRows(){
   }
   const st = document.getElementById('status');
   if(!ok){ if(st) st.textContent = "Error: " + (lastErr||"no CSV"); rowsAll=[]; CHANGED=true; }
-  else { if(st) st.textContent = `Rows: ${rowsAll.length}`; console.log('Parsed rows', rowsAll.slice(0,3)); }
+  else { if(st) st.textContent = `Rows: ${rowsAll.length}`; }
 }
 
 function getRange(){ const b=document.querySelector('#rangeSeg .active'); return b?b.dataset.range:'30'; }
@@ -222,7 +220,7 @@ function renderTable(){
 }
 
 async function refreshAll(){
-  const st=document.getElementById('status'); const t0=Date.now(); if(st) st.textContent='Loading…';
+  const st=document.getElementById('status'); if(st) st.textContent='Loading…';
   await fetchRows();
   applyFilters(); renderKPIs(); renderChart(); renderTable();
   if(st) st.textContent = 'Updated '+new Date().toLocaleTimeString();
