@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>US Team Fleet</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,36 +11,29 @@
 <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#000;--fg:#e8e8ea;--muted:#9aa0a6;--ring:#1f2228;--btn:#0f1217;--btn2:#14171d;--accent:#ff3b30}
-*{box-sizing:border-box}
-html,body{height:100%}
+*{box-sizing:border-box}html,body{height:100%}
 body{min-height:100vh;margin:0;background:#000;color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-.wrap{width:100%;margin:0;padding:24px 36px}
+.wrap{width:100%;padding:24px 36px}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
 .brand{font-weight:600;letter-spacing:.2px;font-size:18px}
-.row{display:grid;gap:14px}
-.row.kpi{grid-template-columns:repeat(3,minmax(0,1fr))}
+.row{display:grid;gap:14px}.row.kpi{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media (max-width:980px){.row.kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:560px){.row.kpi{grid-template-columns:1fr}}
-.card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:16px;padding:14px}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:16px;padding:14px}
 .kpi .value{font-size:26px;font-weight:600;margin-top:8px}
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .seg{display:flex;border:1px solid var(--ring);border-radius:12px;padding:4px;gap:4px;background:var(--btn)}
 .seg button{border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;font-weight:600;cursor:pointer}
 .seg button.active{background:var(--btn2);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
 input,button{appearance:none;border:1px solid var(--ring);background:var(--btn);color:#e6e8ef;border-radius:12px;padding:8px 12px;font-weight:600;outline:none}
-button:hover{box-shadow:0 6px 16px rgba(0,0,0,.35)}
-.pill{font-size:12px;color:var(--muted)}
+button:hover{box-shadow:0 6px 16px rgba(0,0,0,.35)}.pill{font-size:12px;color:var(--muted)}
 canvas{background:linear-gradient(180deg,#0b0e13,#000);border:1px solid var(--ring);border-radius:16px;padding:8px}
 table{width:100%;border-collapse:separate;border-spacing:0 10px}
-th,td{text-align:left;padding:12px 14px}
-th{font-size:12px;color:var(--muted);font-weight:600}
+th,td{text-align:left;padding:12px 14px}th{font-size:12px;color:var(--muted);font-weight:600}
 tr{background:linear-gradient(180deg,#0d1015,#0a0d12);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
 tr td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}
 tr td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
-a{color:var(--accent);text-decoration:none}
-a:hover{opacity:.9}
-.right{text-align:right}
-.accent{color:var(--accent)}
+a{color:var(--accent);text-decoration:none}a:hover{opacity:.9}.right{text-align:right}.accent{color:var(--accent)}
 </style>
 </head>
 <body>
@@ -54,7 +47,7 @@ a:hover{opacity:.9}
       </div>
       <input id="assetSearch" placeholder="Filter by amount, date, asset, repair"/>
       <button id="refreshBtn" class="accent" style="border-color:#3a1614;background:#160808">Refresh</button>
-      <div class="pill" id="status">—</div>
+      <div class="pill" id="status">Boot…</div>
     </div>
   </header>
 
@@ -69,20 +62,15 @@ a:hover{opacity:.9}
     <div class="card">
       <div class="muted" style="margin-bottom:8px">Latest entries</div>
       <div style="overflow:auto">
-        <table id="table">
-          <thead>
-            <tr>
-              <th style="min-width:110px">Date</th>
-              <th style="min-width:180px">Asset</th>
-              <th>Repair</th>
-              <th class="right" style="min-width:110px">Total</th>
-              <th style="min-width:110px">PaidBy</th>
-              <th style="min-width:120px">ReportedBy</th>
-              <th style="min-width:160px">Invoice Link</th>
-            </tr>
-          </thead>
-          <tbody></tbody>
-        </table>
+        <table id="table"><thead><tr>
+          <th style="min-width:110px">Date</th>
+          <th style="min-width:180px">Asset</th>
+          <th>Repair</th>
+          <th class="right" style="min-width:110px">Total</th>
+          <th style="min-width:110px">PaidBy</th>
+          <th style="min-width:120px">ReportedBy</th>
+          <th style="min-width:160px">Invoice Link</th>
+        </tr></thead><tbody></tbody></table>
       </div>
     </div>
   </section>
@@ -90,211 +78,128 @@ a:hover{opacity:.9}
 
 <script>
 "use strict";
-var SHEET_ID = "1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA";
-var SHEET_NAME = "TMS";
-var SHEET_GID = "2027199769";
-var FULL_REFRESH_MS = 5*60*1000;
-var CHANGE_WATCH_MS = 30000;
+// ---------- CONFIG ----------
+var CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/gviz/tq?tqx=out:csv&sheet=TMS";
+var FULL_REFRESH_MS=5*60*1000, CHANGE_WATCH_MS=30000;
 
-var lastSig = null, rowsCache = [], busy=false;
-function normKey(k){ return String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,""); }
+// ---------- UTIL ----------
+var lastSig=null, rowsCache=[], busy=false, rowsAll=[], rows=[], trendChart;
+function normKey(k){return String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");}
+function money(n){return isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});}
+function numUSD(s){if(s==null)return 0;var m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?Number(m[0]):0;}
+function toDate(s){
+  if(!s)return null;var t=String(s).replace(/\uFEFF/g,"").trim();
+  var m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t);if(m)return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
+  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  var d=new Date(t);return isNaN(d)?null:d;
+}
+function byDateDesc(a,b){var aa=a._date?a._date.getTime():0,bb=b._date?b._date.getTime():0;return bb-aa;}
+function strHash(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}return(h>>>0).toString(16);}
+function normalizeLink(s){if(!s)return"";s=String(s).trim();return /^https?:\/\//i.test(s)?s:"";}
 
-function pickField(row, variants){
-  var keys = Object.keys(row||{});
-  var map = {};
-  for(var i=0;i<keys.length;i++){ map[normKey(keys[i])] = keys[i]; }
-  for(var j=0;j<variants.length;j++){
-    var nk = normKey(variants[j]);
-    if(map[nk]!==undefined) return row[map[nk]];
-    for(var k in map){
-      if(k.indexOf(nk)!==-1 || nk.indexOf(k)!==-1) return row[map[k]];
-    }
-  }
+// ---------- IO ----------
+async function downloadCSVText(){
+  var url=CSV_URL+"&v="+Date.now();
+  var r=await fetch(url,{cache:"no-store"}); if(!r.ok) throw new Error("HTTP "+r.status);
+  var txt=await r.text(); if(/^\s*</.test(txt)) throw new Error("HTML instead of CSV");
+  return txt;
+}
+
+// ---------- PARSE ----------
+function pickField(row,variants){
+  var keys=Object.keys(row||{}), map={}; for(var i=0;i<keys.length;i++){map[normKey(keys[i])]=keys[i];}
+  for(var j=0;j<variants.length;j++){var nk=normKey(variants[j]); if(map[nk]!==undefined)return row[map[nk]];
+    for(var k in map){if(k.indexOf(nk)!==-1||nk.indexOf(k)!==-1)return row[map[k]];}}
   return undefined;
 }
-
-function csvUrls(){
-  var u=[];
-  if(SHEET_GID && /^\d+$/.test(SHEET_GID)){ u.push("https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/export?format=csv&gid="+SHEET_GID); }
-  u.push("https://docs.google.com/spreadsheets/d/"+SHEET_ID+"/gviz/tq?tqx=out:csv&sheet="+encodeURIComponent(SHEET_NAME));
-  return u;
-}
-function money(n){ return isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2}); }
-function numUSD(s){ if(s==null) return 0; var t=String(s).match(/-?\d+(?:\.\d+)?/g); return t?Number(t.join("")):0; }
-function toDate(s){
-  if(!s) return null;
-  var t=String(s).trim();
-  var d=new Date(t);
-  if(!isNaN(d)) return d;
-  var m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t);
-  if(m){ return new Date((+m[3]<100?2000+ +m[3]:+m[3]), +m[1]-1, +m[2]); }
-  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t);
-  if(m){ return new Date(+m[1], +m[2]-1, +m[3]); }
-  return null;
-}
-function byDateDesc(a,b){
-  var aa=a._date?a._date.getTime():0;
-  var bb=b._date?b._date.getTime():0;
-  return bb-aa;
-}
-
-var rowsAll=[], rows=[], trendChart;
-
-function strHash(s){ var h=0; for(var i=0;i<s.length;i++){ h=((h<<5)-h + s.charCodeAt(i))|0; } return (h>>>0).toString(16); }
-function normalizeLink(s){ if(!s) return ""; s=String(s).trim(); return /^https?:\/\//i.test(s)?s:""; }
-
-function downloadCSVText(){
-  var list = csvUrls();
-  return new Promise(function(resolve,reject){
-    (function next(i){
-      if(i>=list.length) return reject(new Error("no CSV"));
-      var url = list[i] + (list[i].indexOf("?")>-1?"&":"?") + "v=" + Date.now();
-      fetch(url,{cache:"no-store"}).then(function(r){ return r.text(); }).then(function(txt){
-        if(/^\s*</.test(txt)) return next(i+1);
-        resolve(txt);
-      }).catch(function(){ next(i+1); });
-    })(0);
-  });
-}
-
 function parseRows(txt){
-  var parsed = Papa.parse(txt,{header:true, dynamicTyping:false, skipEmptyLines:true});
-  var data = (parsed.data||[]).filter(function(x){ return x && Object.keys(x).length; });
-  var list = data.map(function(r){
-    var DateVal = pickField(r, ['Date']);
-    var AssetVal = pickField(r, ['Asset']);
-    var RepairVal = pickField(r, ['Repair','Description']);
-    var TotalVal = pickField(r, ['Total Amount','Total','Amount']);
-    var PaidByVal = pickField(r, ['PaidBy','Paid By']);
-    var ReportedByVal = pickField(r, ['ReportedBy','Reporter']);
-    var InvoiceLinkVal = pickField(r, ['InvoiceLink','Invoice','Link']);
-    var CommentsVal = pickField(r, ['Comments','Notes']);
-    var d = toDate(DateVal);
-    return { Date:DateVal, Asset:AssetVal, Repair:RepairVal, Total:numUSD(TotalVal),
-             InvoiceLink: normalizeLink(InvoiceLinkVal), PaidBy:PaidByVal, Comments:CommentsVal,
-             ReportedBy:ReportedByVal, _date:d };
-  }).filter(function(r){ return r._date; });
+  var parsed=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
+  var data=(parsed.data||[]).filter(function(x){return x&&Object.keys(x).length;});
+  var list=data.map(function(r){
+    var DateVal=pickField(r,["Date"]);
+    var AssetVal=pickField(r,["Asset"]);
+    var RepairVal=pickField(r,["Repair","Description"]);
+    var TotalVal=pickField(r,["Total Amount","Total","Amount"]);
+    var PaidByVal=pickField(r,["PaidBy","Paid By"]);
+    var ReportedByVal=pickField(r,["ReportedBy","Reporter"]);
+    var InvoiceLinkVal=pickField(r,["InvoiceLink","Invoice","Link"]);
+    var CommentsVal=pickField(r,["Comments","Notes"]);
+    var d=toDate(DateVal);
+    return{Date:DateVal,Asset:AssetVal,Repair:RepairVal,Total:numUSD(TotalVal),
+           InvoiceLink:normalizeLink(InvoiceLinkVal),PaidBy:PaidByVal,Comments:CommentsVal,
+           ReportedBy:ReportedByVal,_date:d};
+  }).filter(function(r){return r._date;});
   return list;
 }
 
+// ---------- RENDER ----------
 function renderKPIs(){
-  var now=new Date();
-  var ms=new Date(now.getFullYear(),now.getMonth(),1);
-  var ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
-  var month=0, week=0, i;
-  for(i=0;i<rows.length;i++){ if(rows[i]._date>=ms) month+=rows[i].Total; if(rows[i]._date>=ws) week+=rows[i].Total; }
-  document.getElementById('kpi-total').textContent = rows.length.toLocaleString();
-  document.getElementById('kpi-month').textContent = money(month);
-  document.getElementById('kpi-week').textContent  = money(week);
+  var now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  var month=0,week=0; for(var i=0;i<rows.length;i++){if(rows[i]._date>=ms)month+=rows[i].Total;if(rows[i]._date>=ws)week+=rows[i].Total;}
+  document.getElementById("kpi-total").textContent=rows.length.toLocaleString();
+  document.getElementById("kpi-month").textContent=money(month);
+  document.getElementById("kpi-week").textContent=money(week);
 }
-
-function toDaily(rs){
-  var m={}, i;
-  for(i=0;i<rs.length;i++){ var d=rs[i]._date.toISOString().slice(0,10); m[d]=(m[d]||0)+rs[i].Total; }
-  var labels=Object.keys(m).sort();
-  var data=[]; for(i=0;i<labels.length;i++) data.push(m[labels[i]]);
-  return {labels:labels, data:data};
-}
+function toDaily(rs){var m={},i;for(i=0;i<rs.length;i++){var d=rs[i]._date.toISOString().slice(0,10);m[d]=(m[d]||0)+rs[i].Total;}
+  var labels=Object.keys(m).sort(),data=[];for(i=0;i<labels.length;i++)data.push(m[labels[i]]);return{labels:labels,data:data};}
 function renderChart(){
-  var el=document.getElementById('chartTrend');
-  var ctx=el.getContext('2d');
-  if(trendChart){ try{trendChart.destroy();}catch(e){} }
-  var s=toDaily(rows);
-  var gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,'#ff3b30'); gradLine.addColorStop(1,'#b5140b');
-  var gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,'rgba(255,59,48,.22)'); gradFill.addColorStop(1,'rgba(255,255,255,0)');
-  trendChart=new Chart(ctx,{type:'line',data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
-    options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:function(c){return '$'+Number(c.parsed.y).toLocaleString();}}}},
-    scales:{x:{ticks:{color:'#9aa0a6'},grid:{display:false}},y:{ticks:{color:'#9aa0a6',callback:function(v){return '$'+v.toLocaleString();}},grid:{color:'rgba(255,255,255,.06)'}}}});
+  var el=document.getElementById("chartTrend"),ctx=el.getContext("2d"); if(trendChart){try{trendChart.destroy();}catch(e){}}
+  var s=toDaily(rows), gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,"#ff3b30"); gradLine.addColorStop(1,"#b5140b");
+  var gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,"rgba(255,59,48,.22)"); gradFill.addColorStop(1,"rgba(255,255,255,0)");
+  trendChart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,
+        callbacks:{label:function(c){return "$"+Number(c.parsed.y).toLocaleString();}}}},
+      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:function(v){return "$"+v.toLocaleString();}},grid:{color:"rgba(255,255,255,.06)"}}}});
 }
-
-function getRange(){
-  var active = document.querySelector('#rangeSeg .active');
-  return active ? active.getAttribute('data-range') : '30';
-}
+function getRange(){var a=document.querySelector("#rangeSeg .active");return a?a.getAttribute("data-range"):"30";}
 function applyFilters(){
-  var rv=getRange();
-  var q=(document.getElementById('assetSearch').value||'').trim().toLowerCase();
-  var now=new Date();
-  var from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==='7'?7:30));
-  function match(r){
-    if(!q) return true;
-    var a=String(r.Asset||'').toLowerCase();
-    var rep=String(r.Repair||'').toLowerCase();
-    var ds=r._date.toLocaleDateString().toLowerCase();
-    var amtStr=money(r.Total).toLowerCase();
-    var amtNum=String(r.Total);
-    return a.indexOf(q)>-1 || rep.indexOf(q)>-1 || ds.indexOf(q)>-1 || amtStr.indexOf(q)>-1 || amtNum.indexOf(q)>-1;
-  }
-  rows = rowsAll.filter(function(r){ return r._date>=from && match(r); });
+  var rv=getRange(), q=(document.getElementById("assetSearch").value||"").trim().toLowerCase();
+  var now=new Date(), from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==="7"?7:30));
+  function match(r){if(!q)return true;var a=String(r.Asset||"").toLowerCase(),rep=String(r.Repair||"").toLowerCase(),ds=r._date.toLocaleDateString().toLowerCase();
+    var amtStr=money(r.Total).toLowerCase(),amtNum=String(r.Total);return a.indexOf(q)>-1||rep.indexOf(q)>-1||ds.indexOf(q)>-1||amtStr.indexOf(q)>-1||amtNum.indexOf(q)>-1;}
+  rows=rowsAll.filter(function(r){return r._date>=from&&match(r);});
 }
-
 function renderTable(){
-  var tb=document.querySelector('#table tbody'); tb.innerHTML='';
-  var i;
-  var sorted = rows.slice().sort(byDateDesc);
-  for(i=0;i<sorted.length;i++){
-    var r=sorted[i];
-    var tr=document.createElement('tr');
-    var link = r.InvoiceLink ? '<a href="'+r.InvoiceLink+'" target="_blank" rel="noopener">open</a>' : '';
-    tr.innerHTML = '<td>'+r._date.toLocaleDateString()+'</td>' +
-                   '<td>'+(r.Asset||'')+'</td>' +
-                   '<td>'+(r.Repair||'')+'</td>' +
-                   '<td class="right">'+money(r.Total)+'</td>' +
-                   '<td>'+(r.PaidBy||'')+'</td>' +
-                   '<td>'+(r.ReportedBy||'')+'</td>' +
-                   '<td>'+link+'</td>';
-    tb.appendChild(tr);
-  }
+  var tb=document.querySelector("#table tbody"); tb.innerHTML="";
+  var s=rows.slice().sort(byDateDesc);
+  for(var i=0;i<s.length;i++){var r=s[i],tr=document.createElement("tr"),link=r.InvoiceLink?'<a href="'+r.InvoiceLink+'" target="_blank" rel="noopener">open</a>':"";
+    tr.innerHTML='<td>'+r._date.toLocaleDateString()+'</td><td>'+(r.Asset||'')+'</td><td>'+(r.Repair||'')+'</td>'+
+      '<td class="right">'+money(r.Total)+'</td><td>'+(r.PaidBy||'')+'</td><td>'+(r.ReportedBy||'')+'</td><td>'+link+'</td>';
+    tb.appendChild(tr);}
 }
 
-function refreshAll(force){
-  if(busy) return;
-  busy=true;
-  var st=document.getElementById('status'); if(st) st.textContent= force?'Refreshing…':'Loading…';
-  downloadCSVText().then(function(txt){
-    var sig=strHash(txt);
-    if(force || lastSig!==sig){
-      lastSig=sig;
-      var parsed=parseRows(txt);
-      if(parsed.length) rowsAll = rowsCache = parsed;
-      applyFilters(); renderKPIs(); renderChart(); renderTable();
-      if(st) st.textContent='Updated '+new Date().toLocaleTimeString();
-    }else{
-      if(st) st.textContent='No changes '+new Date().toLocaleTimeString();
-    }
-  }).catch(function(){
-    if(rowsCache.length){
-      rowsAll=rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable();
-      if(st) st.textContent='Offline • showing last data';
-    }else{
-      if(st) st.textContent='Error loading CSV';
-    }
-  }).finally(function(){ busy=false; });
+// ---------- FLOW ----------
+function setStatus(t){var st=document.getElementById("status");if(st)st.textContent=t;}
+async function refreshAll(force){
+  if(busy)return; busy=true; setStatus(force?"Refreshing…":"Loading…");
+  try{
+    var txt=await downloadCSVText(); var sig=strHash(txt);
+    if(force||lastSig!==sig){ lastSig=sig; var parsed=parseRows(txt); if(parsed.length)rowsAll=rowsCache=parsed;
+      applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Updated "+new Date().toLocaleTimeString()+" • rows "+rowsAll.length);
+    } else { setStatus("No changes "+new Date().toLocaleTimeString()); }
+  }catch(e){
+    console.error("refresh error:",e);
+    if(rowsCache.length){ rowsAll=rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Offline • showing last data"); }
+    else{ setStatus("Error: "+(e&&e.message?e.message:"load failed")); }
+  }finally{ busy=false; }
 }
+function watchChanges(){ downloadCSVText().then(function(t){var s=strHash(t); if(lastSig&&s!==lastSig)refreshAll(true);})
+  .catch(function(){}).finally(function(){setTimeout(watchChanges,CHANGE_WATCH_MS);}); }
 
-function watchChanges(){
-  downloadCSVText().then(function(txt){
-    var sig=strHash(txt);
-    if(lastSig && sig!==lastSig){ refreshAll(true); }
-  }).catch(function(){}).finally(function(){
-    setTimeout(watchChanges, 30000);
-  });
-}
-
-document.getElementById('refreshBtn').addEventListener('click', function(){ refreshAll(true); });
-document.getElementById('rangeSeg').addEventListener('click', function(e){
-  var b=e.target.closest('button'); if(!b) return;
-  var btns=document.querySelectorAll('#rangeSeg button');
-  for(var i=0;i<btns.length;i++){ btns[i].classList.remove('active'); }
-  b.classList.add('active'); applyFilters(); renderKPIs(); renderChart(); renderTable();
+// ---------- EVENTS ----------
+document.getElementById("refreshBtn").addEventListener("click",function(){refreshAll(true);});
+document.getElementById("rangeSeg").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b)return; var btns=document.querySelectorAll("#rangeSeg button");
+  for(var i=0;i<btns.length;i++)btns[i].classList.remove("active"); b.classList.add("active");
+  applyFilters(); renderKPIs(); renderChart(); renderTable();
 });
-document.getElementById('assetSearch').addEventListener('input', function(){ applyFilters(); renderKPIs(); renderChart(); renderTable(); });
-document.addEventListener('visibilitychange', function(){ if(document.visibilityState==='visible') refreshAll(true); });
-
-window.addEventListener('DOMContentLoaded', function(){
-  refreshAll(true);
-  setInterval(function(){ refreshAll(true); }, FULL_REFRESH_MS);
-  setTimeout(watchChanges, CHANGE_WATCH_MS);
+document.getElementById("assetSearch").addEventListener("input",function(){applyFilters(); renderKPIs(); renderChart(); renderTable();});
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")refreshAll(true);});
+window.addEventListener("DOMContentLoaded",function(){
+  (function waitLibs(i){ i=i||0; if(window.Papa&&window.Chart){refreshAll(true); setInterval(function(){refreshAll(true);},FULL_REFRESH_MS); setTimeout(watchChanges,CHANGE_WATCH_MS);}
+    else if(i<60){setStatus("Boot… "+i); setTimeout(function(){waitLibs(i+1);},250);} else {setStatus("Error: libs not loaded");}
+  })();
 });
 </script>
 </body>
