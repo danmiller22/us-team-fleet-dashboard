@@ -10,59 +10,57 @@
   <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
-    :root{--bg:#0b0f14;--fg:#e6e8ef;--muted:#98a2b3;--ring:#1b2230;--accent:#ffb020;--accent2:#ff7a59}
+    :root{--bg:#000;--fg:#e8e8ea;--muted:#9aa0a6;--ring:#1f2228;--btn:#0f1217;--btn2:#14171d;--accent:#ff3b30}
     *{box-sizing:border-box}
     html,body{height:100%}
-    body{min-height:100vh;margin:0;background:#0b0f14;color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+    body{min-height:100vh;margin:0;background:#000;color:var(--fg);font:14px/1.5 Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
     .wrap{width:100%;margin:0;padding:24px 36px}
     header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
     .brand{font-weight:600;letter-spacing:.2px;font-size:18px}
-    .muted{color:var(--muted)}
     .row{display:grid;gap:14px}
     .row.kpi{grid-template-columns:repeat(3,minmax(0,1fr))}
     @media (max-width:980px){.row.kpi{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media (max-width:560px){.row.kpi{grid-template-columns:1fr}}
-    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:16px;padding:14px;backdrop-filter:saturate(140%) blur(6px)}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:16px;padding:14px}
     .kpi .value{font-size:26px;font-weight:600;margin-top:8px}
     .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-    .seg{display:flex;border:1px solid var(--ring);border-radius:12px;padding:4px;gap:4px}
+    .seg{display:flex;border:1px solid var(--ring);border-radius:12px;padding:4px;gap:4px;background:var(--btn)}
     .seg button{border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;font-weight:600;cursor:pointer}
-    .seg button.active{background:linear-gradient(180deg,#1b2230,#141a22);color:var(--fg)}
-    input,button{appearance:none;border:1px solid var(--ring);background:linear-gradient(180deg,#1a1c24,#13141b);color:#e6e8ef;border-radius:12px;padding:8px 12px;font-weight:600;outline:none}
+    .seg button.active{background:var(--btn2);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.04)}
+    input,button{appearance:none;border:1px solid var(--ring);background:var(--btn);color:#e6e8ef;border-radius:12px;padding:8px 12px;font-weight:600;outline:none}
+    button:hover{box-shadow:0 6px 16px rgba(0,0,0,.35)}
     .pill{font-size:12px;color:var(--muted)}
-    canvas{background:linear-gradient(180deg,#0c1117,#0b0f14);border:1px solid var(--ring);border-radius:16px;padding:8px}
+    canvas{background:linear-gradient(180deg,#0b0e13,#000);border:1px solid var(--ring);border-radius:16px;padding:8px}
     table{width:100%;border-collapse:separate;border-spacing:0 10px}
     th,td{text-align:left;padding:12px 14px}
     th{font-size:12px;color:var(--muted);font-weight:600}
-    tr{background:linear-gradient(180deg,#11131a,#0e1016);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
+    tr{background:linear-gradient(180deg,#0d1015,#0a0d12);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
     tr td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}
     tr td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
     a{color:var(--accent);text-decoration:none}
     a:hover{text-decoration:underline}
     .right{text-align:right}
+    .accent{color:var(--accent)}
   </style>
 </head>
 <body>
   <div class="wrap">
     <header>
-      <div>
-        <div class="brand">US Team Fleet</div>
-        <div class="muted">Live dashboard from Google Sheet</div>
-      </div>
+      <div class="brand">US Team Fleet</div>
       <div class="controls">
         <div class="seg" id="rangeSeg">
           <button data-range="7">7d</button>
           <button data-range="30" class="active">30d</button>
         </div>
         <input id="assetSearch" placeholder="Filter by amount, date, asset, repair"/>
-        <button id="refreshBtn">Refresh</button>
+        <button id="refreshBtn" class="accent" style="border-color:#3a1614;background:#160808">Refresh</button>
         <div class="pill" id="status">—</div>
       </div>
     </header>
 
     <section class="row kpi">
       <div class="card kpi"><div class="muted">Entries</div><div class="value" id="kpi-total">—</div></div>
-      <div class="card kpi"><div class="muted">Spend this month</div><div class="value" id="kpi-month">—</div></div>
+      <div class="card kpi"><div class="muted">Spend this month</div><div class="value accent" id="kpi-month">—</div></div>
       <div class="card kpi"><div class="muted">Spend last 7 days</div><div class="value" id="kpi-week">—</div></div>
     </section>
 
@@ -94,7 +92,7 @@
 const SHEET_ID = "1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA";
 const SHEET_NAME = "TMS";
 const SHEET_GID = "2027199769";
-let lastSig = null, firstLoad = true, CHANGED = true;
+let lastSig = null, CHANGED = true, firstLoad = true;
 
 function csvUrls(){
   const u=[];
@@ -113,12 +111,13 @@ function strHash(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charC
 function normalizeLink(s){ if(!s) return ""; s = String(s).trim(); if(/^https?:\/\//i.test(s)) return s; return ""; }
 
 async function fetchRows(){
-  rowsAll=[]; let ok=false;
+  rowsAll=[]; let ok=false, lastErr="";
   for(const base of csvUrls()){
     try{
-      const resp = await fetch(base + (base.includes('?')?'&':'?') + 'v=' + Date.now(), {cache:'no-store'});
+      const url = base + (base.includes('?')?'&':'?') + 'v=' + Date.now();
+      const resp = await fetch(url,{cache:'no-store'});
       const txt = await resp.text();
-      if(/^\s*</.test(txt)) continue;
+      if(/^\s*</.test(txt)){ lastErr="Sheet not public or wrong URL"; continue; }
       const sig = strHash(txt);
       if(lastSig && sig===lastSig){ CHANGED=false; ok=true; break; }
       lastSig=sig; CHANGED=true;
@@ -131,9 +130,10 @@ async function fetchRows(){
                    ReportedBy:r['ReportedBy']||r['Reporter'], _date: toDate(r['Date'])}))
         .filter(r=>r._date);
       ok=true; break;
-    }catch(e){}
+    }catch(e){ lastErr = e?.message || "fetch error"; }
   }
-  if(!ok){ rowsAll=[]; CHANGED=true; }
+  const st = document.getElementById('status');
+  if(!ok){ if(st) st.textContent = "Error: " + (lastErr||"no CSV"); rowsAll=[]; CHANGED=true; } else { if(st) st.textContent="OK"; }
 }
 
 function getRange(){ const b=document.querySelector('#rangeSeg .active'); return b?b.dataset.range:'30'; }
@@ -163,8 +163,8 @@ function renderChart(){
   const el=document.getElementById('chartTrend'); const ctx=el.getContext('2d');
   if(trendChart){ try{trendChart.destroy()}catch(e){} }
   const s=toDaily(rows);
-  const gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,'#ffb020'); gradLine.addColorStop(1,'#ff7a59');
-  const gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,'rgba(255,176,32,.28)'); gradFill.addColorStop(1,'rgba(255,255,255,0)');
+  const gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,'#ff3b30'); gradLine.addColorStop(1,'#b5140b');
+  const gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,'rgba(255,59,48,.22)'); gradFill.addColorStop(1,'rgba(255,255,255,0)');
   trendChart=new Chart(ctx,{type:'line',data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(15,18,25,.9)',borderColor:'#1f2330',borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>'$'+Number(c.parsed.y).toLocaleString()}}},
     scales:{x:{ticks:{color:'#9aa0a6'},grid:{display:false}},y:{ticks:{color:'#9aa0a6',callback:v=>'$'+v.toLocaleString()},grid:{color:'rgba(255,255,255,.06)'}}}});
@@ -187,9 +187,10 @@ function renderTable(){
 }
 
 async function refreshAll(){
-  const st=document.getElementById('status'); const t0=Date.now(); if(st) st.textContent='Live • polling';
+  const st=document.getElementById('status'); const t0=Date.now(); if(st) st.textContent='Loading…';
   await fetchRows();
-  if(firstLoad || CHANGED){ applyFilters(); renderKPIs(); renderChart(); renderTable(); firstLoad=false; if(st) st.textContent='Updated '+new Date().toLocaleTimeString()+' • '+(Date.now()-t0)+' ms'; }
+  applyFilters(); renderKPIs(); renderChart(); renderTable();
+  if(st) st.textContent = 'Updated '+new Date().toLocaleTimeString();
 }
 async function live(){ await refreshAll(); setTimeout(live, 2000); }
 
