@@ -80,51 +80,54 @@ a{color:var(--accent);text-decoration:none}a:hover{opacity:.9}.right{text-align:
 "use strict";
 
 // CONFIG
-const CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/gviz/tq?tqx=out:csv&sheet=TMS";
-const FULL_REFRESH_MS=5*60*1000, CHANGE_WATCH_MS=30000;
+var CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/gviz/tq?tqx=out:csv&sheet=TMS";
+var FULL_REFRESH_MS=5*60*1000, CHANGE_WATCH_MS=30000;
 
 // STATE
-let lastSig=null, rowsCache=[], busy=false, rowsAll=[], rows=[], trendChart;
+var lastSig=null, rowsCache=[], busy=false, rowsAll=[], rows=[], trendChart;
 
 // UTIL
-const normKey=k=>String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
-const money=n=>isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});
-function numUSD(s){ if(s==null)return 0; const m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/); return m?Number(m[0]):0; }
+function normKey(k){return String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");}
+function money(n){return isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});}
+function numUSD(s){if(s==null)return 0;var m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?Number(m[0]):0;}
 function toDate(s){
-  if(!s) return null; const t=String(s).replace(/\uFEFF/g,"").trim();
-  let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t); if(m) return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
-  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  const d=new Date(t); return isNaN(d)?null:d;
+  if(!s)return null;var t=String(s).replace(/\uFEFF/g,"").trim();
+  var m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t);if(m)return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
+  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  var d=new Date(t);return isNaN(d)?null:d;
 }
-const byDateDesc=(a,b)=>((b._date?b._date.getTime():0)-(a._date?a._date.getTime():0));
-const strHash=s=>{let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0; return (h>>>0).toString(16);};
-const normalizeLink=s=>!s?"":(/^https?:\/\//i.test(String(s).trim())?String(s).trim():"");
+function byDateDesc(a,b){var aa=a._date?a._date.getTime():0,bb=b._date?b._date.getTime():0;return bb-aa;}
+function strHash(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0}return(h>>>0).toString(16);}
+function normalizeLink(s){if(!s)return"";s=String(s).trim();return /^https?:\/\//i.test(s)?s:"";}
 
 // IO
-async function downloadCSVText(){
-  const r=await fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"});
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const txt=await r.text();
-  if(/^\s*</.test(txt)) throw new Error("HTML instead of CSV");
-  return txt;
+function downloadCSVText(){
+  var url=CSV_URL+"&v="+Date.now();
+  return fetch(url,{cache:"no-store"}).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    return r.text();
+  }).then(function(txt){
+    if(/^\s*</.test(txt)) throw new Error("HTML instead of CSV");
+    return txt;
+  });
 }
 
 // PARSE
 function pickField(row,variants){
-  const map={}; for(const k of Object.keys(row||{})) map[normKey(k)]=k;
-  for(const v of variants){
-    const nk=normKey(v);
+  var keys=Object.keys(row||{}), map={}; for(var i=0;i<keys.length;i++){map[normKey(keys[i])]=keys[i];}
+  for(var j=0;j<variants.length;j++){
+    var nk=normKey(variants[j]);
     if(map[nk]!==undefined) return row[map[nk]];
-    for(const k in map){ if(k.includes(nk)||nk.includes(k)) return row[map[k]]; }
+    for(var k in map){ if(k.indexOf(nk)!==-1 || nk.indexOf(k)!==-1) return row[map[k]]; }
   }
   return undefined;
 }
 function parseRows(txt){
-  const parsed=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
-  const data=(parsed.data||[]).filter(x=>x&&Object.keys(x).length);
-  return data.map(r=>{
-    const d=toDate(pickField(r,["Date"]));
-    return {
+  var parsed=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
+  var data=(parsed.data||[]).filter(function(x){return x&&Object.keys(x).length;});
+  var list=data.map(function(r){
+    var d=toDate(pickField(r,["Date"]));
+    return{
       Date: pickField(r,["Date"]),
       Asset: pickField(r,["Asset"]),
       Repair: pickField(r,["Repair","Description"]),
@@ -135,89 +138,99 @@ function parseRows(txt){
       Comments: pickField(r,["Comments","Notes"]),
       _date: d
     };
-  }).filter(r=>r._date);
+  }).filter(function(r){return r._date;});
+  return list;
 }
 
 // RENDER
 function renderKPIs(){
-  const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
-  let month=0, week=0; for(const r of rows){ if(r._date>=ms) month+=r.Total; if(r._date>=ws) week+=r.Total; }
+  var now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  var month=0,week=0; for(var i=0;i<rows.length;i++){if(rows[i]._date>=ms)month+=rows[i].Total;if(rows[i]._date>=ws)week+=rows[i].Total;}
   document.getElementById("kpi-total").textContent=rows.length.toLocaleString();
   document.getElementById("kpi-month").textContent=money(month);
   document.getElementById("kpi-week").textContent=money(week);
 }
-function toDaily(rs){ const m={}; for(const r of rs){ const d=r._date.toISOString().slice(0,10); m[d]=(m[d]||0)+r.Total; }
-  const labels=Object.keys(m).sort(); return {labels, data:labels.map(l=>m[l])}; }
+function toDaily(rs){var m={},i;for(i=0;i<rs.length;i++){var d=rs[i]._date.toISOString().slice(0,10);m[d]=(m[d]||0)+rs[i].Total;}
+  var labels=Object.keys(m).sort(),data=[];for(i=0;i<labels.length;i++)data.push(m[labels[i]]);return{labels:labels,data:data};}
 function renderChart(){
-  const ctx=document.getElementById("chartTrend").getContext("2d");
-  if(trendChart) try{trendChart.destroy();}catch(e){}
-  const s=toDaily(rows), gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,"#ff3b30"); gradLine.addColorStop(1,"#b5140b");
-  const gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,"rgba(255,59,48,.22)"); gradFill.addColorStop(1,"rgba(255,255,255,0)");
+  var ctx=document.getElementById("chartTrend").getContext("2d");
+  if(trendChart){try{trendChart.destroy();}catch(e){}}
+  var s=toDaily(rows), gradLine=ctx.createLinearGradient(0,0,220,0); gradLine.addColorStop(0,"#ff3b30"); gradLine.addColorStop(1,"#b5140b");
+  var gradFill=ctx.createLinearGradient(0,0,0,240); gradFill.addColorStop(0,"rgba(255,59,48,.22)"); gradFill.addColorStop(1,"rgba(255,255,255,0)");
   trendChart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gradLine,backgroundColor:gradFill}]},
     options:{responsive:true,maintainAspectRatio:false,animation:{duration:800},
       plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,
-        callbacks:{label:c=>"$"+Number(c.parsed.y).toLocaleString()}}},
-      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:v=>"$"+v.toLocaleString()},grid:{color:"rgba(255,255,255,.06)"}}}});
+        callbacks:{label:function(c){return "$"+Number(c.parsed.y).toLocaleString();}}}},
+      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:function(v){return "$"+v.toLocaleString();}},grid:{color:"rgba(255,255,255,.06)"}}}});
 }
-function getRange(){ const a=document.querySelector("#rangeSeg .active"); return a?a.getAttribute("data-range"):"30"; }
+function getRange(){var a=document.querySelector("#rangeSeg .active");return a?a.getAttribute("data-range"):"30";}
 function applyFilters(){
-  const rv=getRange(), q=(document.getElementById("assetSearch").value||"").trim().toLowerCase();
-  const now=new Date(), from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==="7"?7:30));
+  var rv=getRange(), q=(document.getElementById("assetSearch").value||"").trim().toLowerCase();
+  var now=new Date(), from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==="7"?7:30));
   function match(r){
-    if(!q) return true;
-    const a=String(r.Asset||"").toLowerCase(), rep=String(r.Repair||"").toLowerCase(), ds=r._date.toLocaleDateString().toLowerCase();
-    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
-    return a.includes(q)||rep.includes(q)||ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);
+    if(!q)return true;
+    var a=String(r.Asset||"").toLowerCase(),rep=String(r.Repair||"").toLowerCase(),ds=r._date.toLocaleDateString().toLowerCase();
+    var amtStr=money(r.Total).toLowerCase(),amtNum=String(r.Total);
+    return a.indexOf(q)>-1||rep.indexOf(q)>-1||ds.indexOf(q)>-1||amtStr.indexOf(q)>-1||amtNum.indexOf(q)>-1;
   }
-  rows=rowsAll.filter(r=>r._date>=from&&match(r));
+  rows=rowsAll.filter(function(r){return r._date>=from&&match(r);});
 }
 function renderTable(){
-  const tb=document.querySelector("#table tbody"); tb.innerHTML="";
-  for(const r of rows.slice().sort(byDateDesc)){
-    const tr=document.createElement("tr");
-    const link=r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:"";
-    tr.innerHTML=`<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
-      <td class="right">${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;
+  var tb=document.querySelector("#table tbody"); tb.innerHTML="";
+  var s=rows.slice().sort(byDateDesc);
+  for(var i=0;i<s.length;i++){
+    var r=s[i],tr=document.createElement("tr");
+    var link=r.InvoiceLink?'<a href="'+r.InvoiceLink+'" target="_blank" rel="noopener">open</a>':"";
+    tr.innerHTML='<td>'+r._date.toLocaleDateString()+'</td><td>'+(r.Asset||'')+'</td><td>'+(r.Repair||'')+'</td>'+
+      '<td class="right">'+money(r.Total)+'</td><td>'+(r.PaidBy||'')+'</td><td>'+(r.ReportedBy||'')+'</td><td>'+link+'</td>';
     tb.appendChild(tr);
   }
 }
 
 // FLOW
-function setStatus(t){ const st=document.getElementById("status"); if(st) st.textContent=t; }
-async function refreshAll(force){
-  if(busy) return; busy=true; setStatus(force?"Refreshing…":"Loading…");
-  try{
-    const txt=await downloadCSVText(); const sig=strHash(txt);
+function setStatus(t){var st=document.getElementById("status");if(st)st.textContent=t;}
+function refreshAll(force){
+  if(busy)return; busy=true; setStatus(force?"Refreshing…":"Loading…");
+  downloadCSVText().then(function(txt){
+    var sig=strHash(txt);
     if(force||lastSig!==sig){
-      lastSig=sig; const parsed=parseRows(txt); if(parsed.length) rowsAll=rowsCache=parsed;
+      lastSig=sig; var parsed=parseRows(txt); if(parsed.length) rowsAll=rowsCache=parsed;
       applyFilters(); renderKPIs(); renderChart(); renderTable();
       setStatus("Updated "+new Date().toLocaleTimeString()+" • rows "+rowsAll.length);
-    }else setStatus("No changes "+new Date().toLocaleTimeString());
-  }catch(e){
-    console.error("refresh error:",e);
-    if(rowsCache.length){ rowsAll=rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Offline • showing last data"); }
-    else setStatus("Error: "+(e&&e.message?e.message:"load failed"));
-  }finally{ busy=false; }
+    }else{
+      setStatus("No changes "+new Date().toLocaleTimeString());
+    }
+  }).catch(function(e){
+    if(rowsCache.length){
+      rowsAll=rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable();
+      setStatus("Offline • showing last data");
+    }else{
+      setStatus("Error: "+(e&&e.message?e.message:"load failed"));
+    }
+  }).finally(function(){busy=false;});
 }
 function watchChanges(){
-  downloadCSVText().then(t=>{ const s=strHash(t); if(lastSig&&s!==lastSig) refreshAll(true); })
-    .catch(()=>{}).finally(()=>setTimeout(watchChanges,CHANGE_WATCH_MS));
+  downloadCSVText().then(function(t){var s=strHash(t); if(lastSig&&s!==lastSig) refreshAll(true);})
+  .catch(function(){})
+  .finally(function(){setTimeout(watchChanges,CHANGE_WATCH_MS);});
 }
 
 // EVENTS
-document.getElementById("refreshBtn").addEventListener("click",()=>refreshAll(true));
-document.getElementById("rangeSeg").addEventListener("click",e=>{
-  const b=e.target.closest("button"); if(!b) return;
-  document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("active"));
+document.getElementById("refreshBtn").addEventListener("click",function(){refreshAll(true);});
+document.getElementById("rangeSeg").addEventListener("click",function(e){
+  var b=e.target.closest("button"); if(!b)return;
+  var btns=document.querySelectorAll("#rangeSeg button");
+  for(var i=0;i<btns.length;i++) btns[i].classList.remove("active");
   b.classList.add("active"); applyFilters(); renderKPIs(); renderChart(); renderTable();
 });
-document.getElementById("assetSearch").addEventListener("input",()=>{applyFilters(); renderKPIs(); renderChart(); renderTable();});
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refreshAll(true); });
-
-window.addEventListener("DOMContentLoaded",function boot(i=0){
-  if(window.Papa&&window.Chart){ refreshAll(true); setInterval(()=>refreshAll(true),FULL_REFRESH_MS); setTimeout(watchChanges,CHANGE_WATCH_MS); }
-  else if(i<60){ setStatus("Boot… "+i); setTimeout(()=>boot(i+1),250); }
-  else setStatus("Error: libs not loaded");
+document.getElementById("assetSearch").addEventListener("input",function(){applyFilters(); renderKPIs(); renderChart(); renderTable();});
+document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")refreshAll(true);});
+window.addEventListener("DOMContentLoaded",function boot(){
+  if(window.Papa&&window.Chart){
+    refreshAll(true); setInterval(function(){refreshAll(true);},FULL_REFRESH_MS); setTimeout(watchChanges,CHANGE_WATCH_MS);
+  }else{
+    setTimeout(boot,250);
+  }
 });
 </script>
 </body>
