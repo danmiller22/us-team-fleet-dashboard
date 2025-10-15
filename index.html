@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
@@ -207,12 +207,12 @@ function refreshAll(force){
     }else{
       setStatus("Error: "+(e&&e.message?e.message:"load failed"));
     }
-  }).finally(function(){busy=false;});
+  }).then(function(){busy=false;});
 }
 function watchChanges(){
   downloadCSVText().then(function(t){var s=strHash(t); if(lastSig&&s!==lastSig) refreshAll(true);})
   .catch(function(){})
-  .finally(function(){setTimeout(watchChanges,CHANGE_WATCH_MS);});
+  .then(function(){setTimeout(watchChanges,CHANGE_WATCH_MS);});
 }
 
 // EVENTS
