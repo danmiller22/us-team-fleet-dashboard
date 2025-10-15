@@ -46,115 +46,76 @@ a{color:var(--accent);text-decoration:none}.right{text-align:right}.pill{font-si
 <script>
 "use strict";
 
-// CSV по GID (ваш лист TMS): делайте Anyone with the link → Viewer
+// CSV по GID (лист TMS). Должен быть Anyone with the link → Viewer.
 const CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/export?format=csv&gid=2027199769";
-const REFRESH_MS=300000;
+// Интервал только для проверки изменений (не для перерисовки без нужды)
+const WATCH_MS=20000;
 
 let lastSig=null, cache=[], busy=false, all=[], rows=[], chart=null;
 
 const $=s=>document.querySelector(s);
 const money=n=>isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});
 const normKey=k=>String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
-function toDate(s){
-  if(!s)return null; const t=String(s).replace(/\uFEFF/g,"").trim();
-  let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t); if(m) return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
-  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  const d=new Date(t); return isNaN(d)?null:d;
-}
-function numUSD(s){ if(s==null) return 0; const m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/); return m?Number(m[0]):0; }
-function pick(row, names){
-  const map={}; Object.keys(row||{}).forEach(k=>map[normKey(k)]=k);
-  for(const n of names){ const nk=normKey(n); if(map[nk]!=null) return row[map[nk]];
-    for(const k in map){ if(k.includes(nk)||nk.includes(k)) return row[map[k]]; } }
-  return undefined;
-}
-function firstURL(obj){
-  const urlRe=/https?:\/\/[^\s,"]+/i;
-  const fields=Object.values(obj||{}).map(v=>String(v||""));
-  for(const v of fields){ const m=v.match(urlRe); if(m) return m[0]; }
-  return "";
-}
-function parseCSV(txt){
-  const p=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
-  return (p.data||[]).filter(r=>r&&Object.keys(r).length).map(r=>{
-    const d=toDate(pick(r,["Date"]));
-    const link=pick(r,["InvoiceLink","Invoice","Link"])||firstURL(r);
-    return { Date: pick(r,["Date"]), Asset: pick(r,["Asset"]), Repair: pick(r,["Repair","Description"]),
-      Total: numUSD(pick(r,["Total","Total Amount","Amount"])), PaidBy: pick(r,["PaidBy","Paid By"]),
-      ReportedBy: pick(r,["ReportedBy","Reporter"]), InvoiceLink: link, Comments: pick(r,["Comments","Notes"]), _date:d };
-  }).filter(r=>r._date);
-}
-function hash(s){let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0; return (h>>>0).toString(16);}
-function byDateDesc(a,b){return (b._date?b._date.getTime():0)-(a._date?a._date.getTime():0);}
-function setStatus(t){ const el=$("#status"); if(el) el.textContent=t; }
+function toDate(s){if(!s)return null;const t=String(s).replace(/\uFEFF/g,"").trim();
+  let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t);if(m)return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
+  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t);if(m)return new Date(+m[1],+m[2]-1,+m[3]);
+  const d=new Date(t);return isNaN(d)?null:d;}
+function numUSD(s){if(s==null)return 0;const m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?Number(m[0]):0;}
+function pick(row,names){const map={};Object.keys(row||{}).forEach(k=>map[normKey(k)]=k);
+  for(const n of names){const nk=normKey(n);if(map[nk]!=null)return row[map[nk]];for(const k in map){if(k.includes(nk)||nk.includes(k))return row[map[k]];}}
+  return undefined;}
+function firstURL(obj){const re=/https?:\/\/[^\s,"]+/i;for(const v of Object.values(obj||{})){const m=String(v||"").match(re);if(m)return m[0];}return"";}
+function parseCSV(txt){const p=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
+  return (p.data||[]).filter(r=>r&&Object.keys(r).length).map(r=>{const d=toDate(pick(r,["Date"]));
+    return{Date:pick(r,["Date"]),Asset:pick(r,["Asset"]),Repair:pick(r,["Repair","Description"]),
+      Total:numUSD(pick(r,["Total","Total Amount","Amount"])),PaidBy:pick(r,["PaidBy","Paid By"]),
+      ReportedBy:pick(r,["ReportedBy","Reporter"]),InvoiceLink:(pick(r,["InvoiceLink","Invoice","Link"])||firstURL(r)),
+      Comments:pick(r,["Comments","Notes"]),_date:d};}).filter(r=>r._date);}
+function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return(h>>>0).toString(16);}
+function byDateDesc(a,b){return(b._date?b._date.getTime():0)-(a._date?a._date.getTime():0);}
+function setStatus(t){const el=$("#status");if(el)el.textContent=t;}
 
-async function fetchCSV(){
-  const r=await fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"});
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  const txt=await r.text();
-  if(/^\s*</.test(txt)) throw new Error("Sheet is not public");
-  return txt;
-}
+async function fetchCSV(){const r=await fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"});if(!r.ok)throw new Error("HTTP "+r.status);
+  const txt=await r.text();if(/^\s*</.test(txt))throw new Error("Sheet is not public");return txt;}
 
-function renderKPIs(){
-  const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
-  let m=0,w=0; rows.forEach(r=>{ if(r._date>=ms) m+=r.Total; if(r._date>=ws) w+=r.Total; });
-  $("#kpi-total").textContent=rows.length.toLocaleString();
-  $("#kpi-month").textContent=money(m);
-  $("#kpi-week").textContent=money(w);
-}
-function toDaily(rs){const m={}; rs.forEach(r=>{const d=r._date.toISOString().slice(0,10); m[d]=(m[d]||0)+r.Total;});
-  const labels=Object.keys(m).sort(); return {labels, data:labels.map(l=>m[l])};}
-function renderChart(){
-  const ctx=$("#chart").getContext("2d"); if(chart) try{chart.destroy();}catch(e){}
-  const s=toDaily(rows); const gl=ctx.createLinearGradient(0,0,220,0); gl.addColorStop(0,"#ff3b30"); gl.addColorStop(1,"#b5140b");
-  const gf=ctx.createLinearGradient(0,0,0,240); gf.addColorStop(0,"rgba(255,59,48,.22)"); gf.addColorStop(1,"rgba(255,255,255,0)");
+function renderKPIs(){const now=new Date(),ms=new Date(now.getFullYear(),now.getMonth(),1),ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  let m=0,w=0;rows.forEach(r=>{if(r._date>=ms)m+=r.Total;if(r._date>=ws)w+=r.Total;});
+  $("#kpi-total").textContent=rows.length.toLocaleString();$("#kpi-month").textContent=money(m);$("#kpi-week").textContent=money(w);}
+function toDaily(rs){const m={};rs.forEach(r=>{const d=r._date.toISOString().slice(0,10);m[d]=(m[d]||0)+r.Total;});
+  const labels=Object.keys(m).sort();return{labels,data:labels.map(l=>m[l])};}
+function renderChart(){const ctx=$("#chart").getContext("2d");if(chart)try{chart.destroy();}catch(e){}
+  const s=toDaily(rows);const gl=ctx.createLinearGradient(0,0,220,0);gl.addColorStop(0,"#ff3b30");gl.addColorStop(1,"#b5140b");
+  const gf=ctx.createLinearGradient(0,0,0,240);gf.addColorStop(0,"rgba(255,59,48,.22)");gf.addColorStop(1,"rgba(255,255,255,0)");
   chart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gl,backgroundColor:gf}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>"$"+Number(c.parsed.y).toLocaleString()}}),
-      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:v=>"$"+v.toLocaleString()},grid:{color:"rgba(255,255,255,.06)"}}}});
-}
-function applyFilters(){
-  const range=($("#rangeSeg .active")||{}).dataset?.range||"30";
-  const q=($("#search").value||"").trim().toLowerCase();
-  const from=new Date(); from.setDate(from.getDate()-(range==="7"?7:30));
-  const match=r=>{
-    if(!q) return true;
-    const ds=r._date.toLocaleDateString().toLowerCase();
-    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
-    return String(r.Asset||"").toLowerCase().includes(q)||
-           String(r.Repair||"").toLowerCase().includes(q)||
-           ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);
-  };
-  rows=all.filter(r=>r._date>=from&&match(r));
-}
-function renderTable(){
-  const tb=$("#table tbody"); tb.innerHTML="";
-  rows.slice().sort(byDateDesc).forEach(r=>{
-    const tr=document.createElement("tr");
-    const link=r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:"";
-    tr.innerHTML=`<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
-      <td class="right">${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;
-    tb.appendChild(tr);
-  });
-}
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>"$"+Number(c.parsed.y).toLocaleString()}}},
+      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:v=>"$"+v.toLocaleString()},grid:{color:"rgba(255,255,255,.06)"}}}});}
 
-async function refresh(force){
-  if(busy) return; busy=true; setStatus(force?"Refreshing…":"Loading…");
-  try{
-    const txt=await fetchCSV(); const sig=hash(txt);
-    if(force||sig!==lastSig){ lastSig=sig; const parsed=parseCSV(txt); if(parsed.length) all=cache=parsed; applyFilters(); renderKPIs(); renderChart(); renderTable(); }
-    setStatus("Updated "+new Date().toLocaleTimeString()+" • rows "+all.length);
-  }catch(e){
-    if(cache.length){ all=cache; applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Offline • cached"); }
-    else setStatus("Error: "+e.message);
-  }finally{ busy=false; }
-}
+function applyFilters(){const range=($("#rangeSeg .active")||{}).dataset?.range||"30";const q=($("#search").value||"").trim().toLowerCase();
+  const from=new Date();from.setDate(from.getDate()-(range==="7"?7:30));
+  const match=r=>{if(!q)return true;const ds=r._date.toLocaleDateString().toLowerCase();const amtStr=money(r.Total).toLowerCase(),amtNum=String(r.Total);
+    return String(r.Asset||"").toLowerCase().includes(q)||String(r.Repair||"").toLowerCase().includes(q)||ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);};
+  rows=all.filter(r=>r._date>=from&&match(r));}
+function renderTable(){const tb=$("#table tbody");tb.innerHTML="";rows.slice().sort(byDateDesc).forEach(r=>{const tr=document.createElement("tr");
+  const link=r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:"";
+  tr.innerHTML=`<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
+  <td class="right">${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;tb.appendChild(tr);});}
+
+async function loadOnce(force){if(busy)return;busy=true;setStatus(force?"Refreshing…":"Loading…");
+  try{const txt=await fetchCSV();const sig=hash(txt);lastSig=sig;const parsed=parseCSV(txt);all=cache=parsed;applyFilters();renderKPIs();renderChart();renderTable();
+    setStatus("Loaded • rows "+all.length);}catch(e){setStatus("Error: "+e.message);}finally{busy=false;}}
+
+async function watchLoop(){try{const txt=await fetchCSV();const sig=hash(txt);
+    if(lastSig && sig!==lastSig){lastSig=sig;const parsed=parseCSV(txt);if(parsed.length){all=parsed;applyFilters();renderKPIs();renderChart();renderTable();setStatus("Updated "+new Date().toLocaleTimeString());}}
+    else{setStatus("Watching… "+new Date().toLocaleTimeString());}}
+  catch(_){/* тихо */} finally{setTimeout(watchLoop,WATCH_MS);}}
 
 // UI
-$("#refreshBtn").addEventListener("click",()=>refresh(true));
-$("#rangeSeg").addEventListener("click",e=>{const b=e.target.closest("button"); if(!b) return; document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); applyFilters(); renderKPIs(); renderChart(); renderTable();});
-$("#search").addEventListener("input",()=>{applyFilters(); renderKPIs(); renderChart(); renderTable();});
-document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(true); });
-window.addEventListener("DOMContentLoaded",()=>{ const wait=()=>{ if(window.Papa&&window.Chart){ refresh(true); setInterval(()=>refresh(true),REFRESH_MS); } else setTimeout(wait,200); }; wait(); });
+$("#refreshBtn").addEventListener("click",()=>loadOnce(true));
+$("#rangeSeg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");applyFilters();renderKPIs();renderChart();renderTable();});
+$("#search").addEventListener("input",()=>{applyFilters();renderKPIs();renderChart();renderTable();});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible") watchLoop();});
+
+window.addEventListener("DOMContentLoaded",()=>{const wait=()=>{if(window.Papa&&window.Chart){loadOnce(true).then(()=>watchLoop());}else setTimeout(wait,200);} ; wait();});
 </script>
 </body></html>
