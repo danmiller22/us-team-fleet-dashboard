@@ -13,7 +13,6 @@ body{
   font:14px/1.5 -apple-system,BlinkMacSystemFont,Inter,Segoe UI,Roboto;
   background:#000;position:relative;overflow-x:hidden;
 }
-/* Чёрно-красный градиент + блёры */
 body::before,body::after{
   content:"";position:fixed;inset:-20% -20% -20% -20%;pointer-events:none;z-index:-3;
   background:
@@ -25,10 +24,9 @@ body::before,body::after{
 }
 body::after{z-index:-2; filter:blur(42px) saturate(130%); opacity:.8}
 
-/* Liquid-glass контейнеры */
 .wrap{padding:24px clamp(16px,4vw,48px)}
 header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
-.brand{font-weight:700;font-size:18px;letter-spacing:.2px}
+.brand{font-weight:700;font-size:18px}
 .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .seg{display:flex;gap:6px;padding:6px;border:1px solid var(--ring);border-radius:16px;background:rgba(12,15,20,.7);backdrop-filter:blur(10px) saturate(160%)}
 .seg button{border:0;background:transparent;color:var(--muted);padding:8px 14px;border-radius:999px;font-weight:700;cursor:pointer;transition:all .25s}
@@ -41,8 +39,7 @@ button.accent{border-color:#3a1412;background:#180909;color:#ffd5d0}
 
 .card{
   position:relative;overflow:hidden;padding:18px;border-radius:22px;border:1px solid rgba(255,255,255,.08);
-  background:
-    linear-gradient(180deg,var(--glass1),var(--glass2));
+  background:linear-gradient(180deg,var(--glass1),var(--glass2));
   backdrop-filter:blur(16px) saturate(180%);
   box-shadow:0 16px 60px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(0,0,0,.4);
 }
@@ -60,11 +57,10 @@ button.accent{border-color:#3a1412;background:#180909;color:#ffd5d0}
 }
 .kv{font-size:30px;font-weight:800;margin-top:10px;letter-spacing:.2px;filter:drop-shadow(0 6px 18px rgba(255,71,58,.12))}
 
-/* График */
 svg{width:100%;height:320px;border-radius:22px;background:linear-gradient(180deg,#0b0f15,#05070a);border:1px solid rgba(255,255,255,.08)}
 .axis{font-size:11px;fill:rgba(255,255,255,.55)}
 .gridl{stroke:rgba(255,255,255,.06)}
-/* Таблица */
+
 table{width:100%;border-collapse:separate;border-spacing:0 12px}
 th,td{text-align:left;padding:14px 16px}th{font-size:12px;color:var(--muted);font-weight:600}
 tr{background:linear-gradient(180deg,rgba(13,17,23,.95),rgba(10,13,18,.95));border:1px solid rgba(255,255,255,.08);border-radius:16px;overflow:hidden;transition:transform .2s, box-shadow .2s}
@@ -127,7 +123,7 @@ function toDate(s){if(!s)return null;var t=String(s).replace(/\uFEFF/g,"").trim(
 function numUSD(s){if(s==null)return 0;var m=String(s).replace(/,/g,"").match(/-?\d+(\.\d+)?/);return m?Number(m[0]):0;}
 function hash(s){var h=0;for(var i=0;i<s.length;i++)h=((h<<5)-h+s.charCodeAt(i))|0;return(h>>>0).toString(16);}
 
-/* CSV parser (устойчивый к кавычкам/запятым) */
+/* CSV parser */
 function parseCSV(txt){
   var out=[],row=[],val="",i=0,q=false;
   function push(){row.push(val);val="";} function end(){out.push(row);row=[];}
@@ -145,7 +141,7 @@ function parseCSV(txt){
     return {Date:pick("Date"),Asset:(function(){for(var k in o){if(k.indexOf("asset")>-1)return o[k]}return""})(),
       Repair:(function(){for(var k in o){if(k.indexOf("repair")>-1||k.indexOf("description")>-1)return o[k]}return""})(),
       Total:numUSD((function(){for(var k in o){if(k.indexOf("total")>-1||k.indexOf("amount")>-1)return o[k]}return""})()),
-      PaidBy:(function(){for(var k in o){if(k.indexOf("paidby")>-1||k.indexOf("paidby")>-1)return o[k]}return""})(),
+      PaidBy:(function(){for(var k in o){if(k.indexOf("paidby")>-1||k.indexOf("paid by")>-1)return o[k]}return""})(),
       ReportedBy:(function(){for(var k in o){if(k.indexOf("reportedby")>-1||k.indexOf("reporter")>-1)return o[k]}return""})(),
       _date:d};
   }).filter(function(x){return x._date;});
@@ -171,26 +167,26 @@ function toDaily(rs){
   var labels=Object.keys(m).sort();
   return{labels:labels,data:labels.map(function(l){return m[l];})};
 }
-/* Catmull–Rom → cubic Bézier */
-function smoothPath(pts){ if(pts.length<2) return ""; var d="M"+pts[0][0]+","+pts[0][1];
-  for(var i=0;i<pts.length-1;i++){var p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2,t=0.2;
-    var cp1x=p1[0]+(p2[0]-p0[0])*t, cp1y=p1[1]+(p2[1]-p0[1])*t, cp2x=p2[0]-(p3[0]-p1[0])*t, cp2y=p2[1]-(p3[1]-p1[1])*t;
-    d+=" C"+cp1x+","+cp1y+" "+cp2x+","+cp2y+" "+p2[0]+","+p2[1]; } return d; }
+function smoothPath(pts){
+  if(pts.length<2) return "";
+  var d="M"+pts[0][0]+","+pts[0][1];
+  for(var i=0;i<pts.length-1;i++){
+    var p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2,t=0.2;
+    var cp1x=p1[0]+(p2[0]-p0[0])*t,cp1y=p1[1]+(p2[1]-p0[1])*t,cp2x=p2[0]-(p3[0]-p1[0])*t,cp2y=p2[1]-(p3[1]-p1[1])*t;
+    d+=" C"+cp1x+","+cp1y+" "+cp2x+","+cp2y+" "+p2[0]+","+p2[1];
+  } return d;
+}
 
 function chart(){
   var svg=$("#chart"); svg.innerHTML="";
   var s=toDaily(rows); if(!s.labels.length) return;
   var W=1000,H=320,P=36,max=Math.max.apply(null,s.data.concat(10));
   var n=s.data.length, step=(W-2*P)/((n-1)||1);
-  var pts=s.data.map(function(y,i){
-    var x=P+i*step, yy=H-P-(y/max)*(H-2*P); return [x,yy];
-  });
+  var pts=s.data.map(function(y,i){var x=P+i*step, yy=H-P-(y/max)*(H-2*P); return [x,yy];});
 
-  // grid
   var grid=""; for(var i=0;i<5;i++){var y=P+i*((H-2*P)/4); grid+=`<line class="gridl" x1="${P}" y1="${y}" x2="${W-P}" y2="${y}"/>`; }
   svg.insertAdjacentHTML("beforeend", grid);
 
-  // curve + area
   var d=smoothPath(pts), area=d+" L "+(W-P)+","+(H-P)+" L "+P+","+(H-P)+" Z";
   var areaEl=document.createElementNS("http://www.w3.org/2000/svg","path");
   areaEl.setAttribute("d",area); areaEl.setAttribute("fill","rgba(255,71,58,.20)"); areaEl.style.opacity="0"; svg.appendChild(areaEl);
@@ -201,7 +197,6 @@ function chart(){
   lineEl.getBoundingClientRect(); lineEl.style.transition="stroke-dashoffset .95s cubic-bezier(.22,1,.36,1)"; lineEl.style.strokeDashoffset="0";
   requestAnimationFrame(function(){ areaEl.style.transition="opacity .9s ease"; areaEl.style.opacity="1"; });
 
-  // x-axis labels (даты)
   var ticks=8; if(n<ticks) ticks=n;
   for(var t=0;t<ticks;t++){
     var idx=Math.round(t*(n-1)/(ticks-1||1));
@@ -212,12 +207,31 @@ function chart(){
   }
 }
 
+/* TABLE with PaidBy/ReportedBy cleanup */
 function table(){
   var tb=$("#tbl tbody"); tb.innerHTML="";
   rows.slice().sort(function(a,b){return b._date-a._date;}).forEach(function(r){
+    var paid=r.PaidBy||"", rep=r.ReportedBy||"";
+    var paidIsUrl=/^https?:\/\//i.test(paid);
+    var repIsActor=/^(company|driver)$/i.test(rep);
+
+    if(paidIsUrl && repIsActor){
+      r.InvoiceLink = paid;   // сохраняем при необходимости (не выводим)
+      paid = rep;             // переносим company/driver в PaidBy
+      rep  = "";              // репортёра корректно нет — очищаем
+    } else if(paidIsUrl){
+      r.InvoiceLink = paid;   // ссылка попала в PaidBy — убираем её
+      paid = "";
+    }
+
     var tr=document.createElement("tr"); tr.className="fadein";
-    tr.innerHTML='<td>'+r._date.toLocaleDateString()+'</td><td>'+(r.Asset||'')+'</td><td>'+(r.Repair||'')+'</td>'+
-      '<td class="right">'+money(r.Total)+'</td><td>'+(r.PaidBy||'')+'</td><td>'+(r.ReportedBy||'')+'</td>';
+    tr.innerHTML =
+      '<td>'+r._date.toLocaleDateString()+'</td>'+
+      '<td>'+(r.Asset||'')+'</td>'+
+      '<td>'+(r.Repair||'')+'</td>'+
+      '<td class="right">'+money(r.Total)+'</td>'+
+      '<td>'+(paid||'')+'</td>'+
+      '<td>'+(rep||'')+'</td>';
     tb.appendChild(tr);
   });
 }
