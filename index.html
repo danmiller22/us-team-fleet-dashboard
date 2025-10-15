@@ -1,81 +1,105 @@
-<!doctype html><html lang="ru"><head>
+<!doctype html><html lang="en"><head>
 <meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>US Team Fleet • Safe</title>
+<title>US Team Fleet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{--bg:#000;--fg:#e8e8ea;--muted:#9aa0a6;--ring:#1f2228;--accent:#ff3b30}
-*{box-sizing:border-box}html,body{height:100%}body{margin:0;min-height:100vh;background:#000;color:var(--fg);font:14px/1.5 system-ui,Inter,Segoe UI,Roboto}
-.wrap{padding:20px 24px}
-h1{margin:0 0 12px;font-size:18px}
-.controls{display:flex;gap:10px;align-items:center;margin:8px 0 16px}
-input,button{background:#0f1217;border:1px solid var(--ring);color:#e8e8ea;border-radius:10px;padding:8px 12px;font-weight:600}
-.status{font-size:12px;color:var(--muted)}
-.err{background:#160808;border:1px solid #3a1614;color:#ffcdc9;border-radius:10px;padding:10px 12px;margin:10px 0;white-space:pre-wrap}
-table{width:100%;border-collapse:separate;border-spacing:0 8px;margin-top:8px}
-th,td{padding:10px 12px;text-align:left}th{color:var(--muted);font-size:12px}
-tr{background:linear-gradient(180deg,#0d1015,#0a0d12);border:1px solid var(--ring);border-radius:10px;overflow:hidden}
-td:first-child{border-top-left-radius:10px;border-bottom-left-radius:10px}
-td:last-child{border-top-right-radius:10px;border-bottom-right-radius:10px}
+:root{--bg:#000;--fg:#e8e8ea;--muted:#9aa0a6;--ring:#1f2228;--btn:#0f1217;--btn2:#14171d;--accent:#ff3b30}
+*{box-sizing:border-box}html,body{height:100%}body{margin:0;min-height:100vh;background:#000;color:var(--fg);font:14px/1.5 Inter,system-ui,Segoe UI,Roboto}
+.wrap{padding:24px 32px}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.brand{font-weight:600;font-size:18px}
+.controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.seg{display:flex;border:1px solid var(--ring);border-radius:12px;padding:4px;background:var(--btn);gap:4px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:6px 10px;border-radius:8px;font-weight:600;cursor:pointer}
+.seg button.active{background:var(--btn2);color:#fff}
+input,button{appearance:none;border:1px solid var(--ring);background:var(--btn);color:#e8e8ea;border-radius:12px;padding:8px 12px;font-weight:600;outline:none}
+button.accent{border-color:#3a1614;background:#160808;color:#ffcdc9}
+.pill{font-size:12px;color:var(--muted)}
+.grid{display:grid;gap:14px}
+.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+@media (max-width:900px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.kpis{grid-template-columns:1fr}}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid var(--ring);border-radius:16px;padding:14px}
+.kv{font-size:26px;font-weight:600;margin-top:6px}
+canvas{background:linear-gradient(180deg,#0b0e13,#000);border:1px solid var(--ring);border-radius:16px;padding:8px}
+table{width:100%;border-collapse:separate;border-spacing:0 10px}
+th,td{text-align:left;padding:12px 14px}th{font-size:12px;color:var(--muted)}
+tr{background:linear-gradient(180deg,#0d1015,#0a0d12);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
+td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}
+td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
 a{color:var(--accent);text-decoration:none}
+.right{text-align:right}
 </style></head><body>
 <div class="wrap">
-  <h1>US Team Fleet</h1>
-  <div class="controls">
-    <input id="q" placeholder="Фильтр: сумма, дата, asset, repair" />
-    <button id="refresh">Refresh</button>
-    <span class="status" id="status">boot…</span>
-  </div>
-  <div id="error" class="err" style="display:none"></div>
-  <table id="tbl"><thead><tr>
-    <th>Date</th><th>Asset</th><th>Repair</th><th>Total</th><th>PaidBy</th><th>ReportedBy</th><th>Invoice</th>
-  </tr></thead><tbody></tbody></table>
+  <header>
+    <div class="brand">US Team Fleet</div>
+    <div class="controls">
+      <div class="seg" id="rangeSeg"><button data-range="7">7d</button><button data-range="30" class="active">30d</button></div>
+      <input id="q" placeholder="Filter: amount, date, asset, repair" />
+      <button id="refresh" class="accent">Refresh</button>
+      <span class="pill" id="status">boot…</span>
+    </div>
+  </header>
+
+  <section class="grid kpis">
+    <div class="card"><div class="pill">Entries</div><div id="kpi-total" class="kv">—</div></div>
+    <div class="card"><div class="pill">Spend this month</div><div id="kpi-month" class="kv">—</div></div>
+    <div class="card"><div class="pill">Spend last 7 days</div><div id="kpi-week" class="kv">—</div></div>
+  </section>
+
+  <section class="grid" style="margin-top:14px">
+    <div style="height:260px"><canvas id="trend"></canvas></div>
+    <div class="card">
+      <div class="pill" style="margin-bottom:8px">Latest entries</div>
+      <div style="overflow:auto">
+        <table id="tbl"><thead><tr>
+          <th>Date</th><th>Asset</th><th>Repair</th><th class="right">Total</th><th>PaidBy</th><th>ReportedBy</th><th>Invoice</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
 </div>
 
 <script>
 "use strict";
 
-// ТОЛЬКО ЭТОТ URL (CSV по GID). Лист должен быть "Anyone with the link: Viewer".
-const CSV_URL = "https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/export?format=csv&gid=2027199769";
-const WATCH_MS = 20000;
+// -------- config
+const CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/export?format=csv&gid=2027199769";
+const WATCH_MS=20000;
 
-let lastSig=null, all=[], rows=[];
+// -------- state
+let lastSig=null, all=[], rows=[], chart=null, busy=false;
 
-const $ = s => document.querySelector(s);
-const money = n => isNaN(n) ? "—" : Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});
-const normKey = k => String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
-
-function toDate(s){
-  if(!s) return null; const t=String(s).replace(/\uFEFF/g,"").trim();
+// -------- helpers
+const $=s=>document.querySelector(s);
+const money=n=>isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});
+const nk=k=>String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
+function toDate(s){ if(!s) return null; const t=String(s).replace(/\uFEFF/g,"").trim();
   let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t); if(m) return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
   m=/(\d{4})-(\d{2})-(\d{2})/.exec(t); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  const d=new Date(t); return isNaN(d)?null:d;
-}
+  const d=new Date(t); return isNaN(d)?null:d; }
 function numUSD(s){ if(s==null) return 0; const m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/); return m?Number(m[0]):0; }
 function hash(s){ let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0; return (h>>>0).toString(16); }
-function pick(row, names){
-  const map={}; Object.keys(row||{}).forEach(k=>map[normKey(k)]=k);
-  for(const n of names){ const nk=normKey(n); if(map[nk]!=null) return row[map[nk]];
-    for(const k in map){ if(k.includes(nk) || nk.includes(k)) return row[map[k]]; } }
+function pick(row, names){ const map={}; Object.keys(row||{}).forEach(k=>map[nk(k)]=k);
+  for(const n of names){ const nkk=nk(n); if(map[nkk]!=null) return row[map[nkk]]; for(const k in map){ if(k.includes(nkk)||nkk.includes(k)) return row[map[k]]; } }
   return undefined;
 }
-function firstURL(obj){
-  const re=/https?:\/\/[^\s,"]+/i;
-  for(const v of Object.values(obj||{})){ const m=String(v||"").match(re); if(m) return m[0]; }
-  return "";
-}
+function firstURL(obj){ const re=/https?:\/\/[^\s,"]+/i; for(const v of Object.values(obj||{})){ const m=String(v||"").match(re); if(m) return m[0]; } return ""; }
+function setStatus(t){ const el=$("#status"); if(el) el.textContent=t; }
 
-async function fetchCSV(){
-  const url = CSV_URL + "&v=" + Date.now();
-  const r = await fetch(url,{cache:"no-store"});
-  const txt = await r.text();
-  return { ok:r.ok, txt, status:r.status };
-}
+// -------- io
+async function fetchCSV(){ const r=await fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"}); const txt=await r.text(); if(!r.ok) throw new Error("HTTP "+r.status);
+  if(/^\s*</.test(txt)) throw new Error("Sheet is not public"); return txt; }
 
+// -------- parse
 function parseCSV(txt){
-  const p = Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
-  return (p.data||[]).filter(r=>r && Object.keys(r).length).map(r=>{
-    const d = toDate(pick(r,["Date"]));
-    return {
+  const p=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
+  return (p.data||[]).filter(r=>r&&Object.keys(r).length).map(r=>{
+    const d=toDate(pick(r,["Date"]));
+    return{
       Date: pick(r,["Date"]),
       Asset: pick(r,["Asset"]),
       Repair: pick(r,["Repair","Description"]),
@@ -88,71 +112,85 @@ function parseCSV(txt){
   }).filter(r=>r._date);
 }
 
-function renderTable(){
-  const tb = $("#tbl tbody"); tb.innerHTML="";
-  rows.sort((a,b)=> (b._date-b._date) - (a._date-a._date)); // безопасно
-  rows.forEach(r=>{
+// -------- render
+function kpis(){
+  const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  let m=0,w=0; rows.forEach(r=>{ if(r._date>=ms) m+=r.Total; if(r._date>=ws) w+=r.Total; });
+  $("#kpi-total").textContent=rows.length.toLocaleString();
+  $("#kpi-month").textContent=money(m);
+  $("#kpi-week").textContent=money(w);
+}
+function toDaily(rs){ const m={}; rs.forEach(r=>{ const d=r._date.toISOString().slice(0,10); m[d]=(m[d]||0)+r.Total; });
+  const labels=Object.keys(m).sort(); return {labels, data:labels.map(l=>m[l])}; }
+function lineChart(){
+  const ctx=$("#trend").getContext("2d"); if(chart) try{chart.destroy();}catch(e){}
+  const s=toDaily(rows);
+  const gl=ctx.createLinearGradient(0,0,220,0); gl.addColorStop(0,"#ff3b30"); gl.addColorStop(1,"#b5140b");
+  const gf=ctx.createLinearGradient(0,0,0,240); gf.addColorStop(0,"rgba(255,59,48,.22)"); gf.addColorStop(1,"rgba(255,255,255,0)");
+  chart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gl,backgroundColor:gf}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>"$"+Number(c.parsed.y).toLocaleString()}}},
+      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:v=>"$"+v.toLocaleString()},grid:{color:"rgba(255,255,255,.06)"}}}});
+}
+function table(){
+  const tb=$("#tbl tbody"); tb.innerHTML="";
+  rows.slice().sort((a,b)=>b._date-a._date).forEach(r=>{
     const tr=document.createElement("tr");
-    const link = r.InvoiceLink ? `<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>` : "";
-    tr.innerHTML = `<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
-      <td>${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;
+    const link=r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:"";
+    tr.innerHTML=`<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
+      <td class="right">${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;
     tb.appendChild(tr);
   });
 }
 
-function applyFilter(){
-  const q = ($("#q").value||"").trim().toLowerCase();
-  const rangeBtn = document.querySelector("#rangeSeg .active");
-  const days = rangeBtn ? (rangeBtn.dataset.range==="7"?7:30) : 30;
-  const from=new Date(); from.setDate(from.getDate()-days);
+// -------- filters
+function applyFilters(){
+  const range=(document.querySelector("#rangeSeg .active")||{}).dataset?.range||"30";
+  const q=($("#q").value||"").trim().toLowerCase();
+  const from=new Date(); from.setDate(from.getDate()-(range==="7"?7:30));
   const match=r=>{
     if(!q) return true;
+    const ds=r._date.toLocaleDateString().toLowerCase();
+    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
     return String(r.Asset||"").toLowerCase().includes(q) ||
            String(r.Repair||"").toLowerCase().includes(q) ||
-           r._date.toLocaleDateString().toLowerCase().includes(q) ||
-           String(r.Total).includes(q);
+           ds.includes(q) || amtStr.includes(q) || amtNum.includes(q);
   };
-  rows = all.filter(r=>r._date>=from && match(r));
+  rows=all.filter(r=>r._date>=from && match(r));
 }
 
-function setStatus(t){ $("#status").textContent = t; }
-function showError(msg, sample){ const e=$("#error"); e.style.display="block"; e.textContent = msg + (sample?("\n\nSample:\n"+sample):""); }
-function hideError(){ const e=$("#error"); e.style.display="none"; e.textContent=""; }
-
+// -------- flow
 async function loadOnce(force){
-  setStatus(force?"refresh…":"load…"); hideError();
+  if(busy) return; busy=true; setStatus(force?"refresh…":"load…");
   try{
-    const {ok, txt, status} = await fetchCSV();
-    if(!ok){ showError("HTTP "+status, txt.slice(0,200)); setStatus("error"); return; }
-    if(/^\s*</.test(txt)){ showError("Google вернул HTML (Sheet не публичный)", txt.slice(0,200)); setStatus("error"); return; }
-    const sig = hash(txt);
-    lastSig = sig;
-    all = parseCSV(txt);
-    applyFilter(); renderTable();
-    setStatus("rows "+all.length);
-  }catch(err){
-    showError(String(err));
-    setStatus("error");
-  }
+    const txt=await fetchCSV(); lastSig=hash(txt); all=parseCSV(txt);
+    applyFilters(); kpis(); lineChart(); table(); setStatus("rows "+all.length);
+  }catch(e){ setStatus("error: "+e.message); }
+  finally{ busy=false; }
 }
-
-async function watch(){
+async function watchLoop(){
   try{
-    const {ok, txt} = await fetchCSV();
-    if(!ok) return setTimeout(watch,20000);
-    const sig = hash(txt);
+    const txt=await fetchCSV(); const sig=hash(txt);
     if(lastSig && sig!==lastSig){
-      lastSig=sig; all=parseCSV(txt); applyFilter(); renderTable(); setStatus("updated "+new Date().toLocaleTimeString());
-    }
-  }catch(_){ }
-  setTimeout(watch,20000);
+      lastSig=sig; all=parseCSV(txt); applyFilters(); kpis(); lineChart(); table(); setStatus("updated "+new Date().toLocaleTimeString());
+    }else{ setStatus("watching… "+new Date().toLocaleTimeString()); }
+  }catch(_){}
+  setTimeout(watchLoop,WATCH_MS);
 }
 
-// UI
-$("#refresh").addEventListener("click", ()=>loadOnce(true));
-$("#q").addEventListener("input", ()=>{applyFilter(); renderTable();});
+// -------- ui
+$("#refresh").addEventListener("click",()=>loadOnce(true));
+$("#rangeSeg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active"); applyFilters(); kpis(); lineChart(); table();
+});
+$("#q").addEventListener("input",()=>{applyFilters(); kpis(); lineChart(); table();});
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") watchLoop(); });
 
-// boot
-window.addEventListener("DOMContentLoaded", ()=> loadOnce(true).then(watch));
+// -------- boot
+window.addEventListener("DOMContentLoaded",()=>{
+  const wait=()=>{ if(window.Papa&&window.Chart){ loadOnce(true).then(()=>watchLoop()); } else setTimeout(wait,200); };
+  wait();
+});
 </script>
 </body></html>
