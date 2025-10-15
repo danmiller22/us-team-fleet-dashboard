@@ -21,12 +21,11 @@ table{width:100%;border-collapse:separate;border-spacing:0 10px}th,td{text-align
 tr{background:linear-gradient(180deg,#0d1015,#0a0d12);border:1px solid var(--ring);border-radius:12px;overflow:hidden}
 tr td:first-child{border-top-left-radius:12px;border-bottom-left-radius:12px}tr td:last-child{border-top-right-radius:12px;border-bottom-right-radius:12px}
 a{color:var(--accent);text-decoration:none}.right{text-align:right}.pill{font-size:12px;color:var(--muted)}
-.banner{position:fixed;left:16px;right:16px;bottom:16px;background:#160808;border:1px solid #3a1614;border-radius:12px;padding:10px 12px;color:#ffcdc9;font-weight:600}
 </style></head><body>
 <div class="wrap">
   <header><div class="brand">US Team Fleet</div><div class="controls">
     <div class="seg" id="rangeSeg"><button data-range="7">7d</button><button data-range="30" class="active">30d</button></div>
-    <input id="assetSearch" placeholder="Filter by amount, date, asset, repair"/><button id="refreshBtn" style="border-color:#3a1614;background:#160808;color:#ffcdc9">Refresh</button>
+    <input id="search" placeholder="Filter by amount, date, asset, repair"/><button id="refreshBtn" style="border-color:#3a1614;background:#160808;color:#ffcdc9">Refresh</button>
     <div class="pill" id="status">Boot…</div></div></header>
   <section class="row kpi">
     <div class="card kpi"><div class="muted">Entries</div><div class="value" id="kpi-total">—</div></div>
@@ -34,7 +33,7 @@ a{color:var(--accent);text-decoration:none}.right{text-align:right}.pill{font-si
     <div class="card kpi"><div class="muted">Spend last 7 days</div><div class="value" id="kpi-week">—</div></div>
   </section>
   <section style="display:grid;gap:14px;margin-top:14px">
-    <div style="height:260px"><canvas id="chartTrend"></canvas></div>
+    <div style="height:260px"><canvas id="chart"></canvas></div>
     <div class="card"><div class="muted" style="margin-bottom:8px">Latest entries</div><div style="overflow:auto">
       <table id="table"><thead><tr>
         <th style="min-width:110px">Date</th><th style="min-width:180px">Asset</th><th>Repair</th>
@@ -43,110 +42,119 @@ a{color:var(--accent);text-decoration:none}.right{text-align:right}.pill{font-si
       </tr></thead><tbody></tbody></table></div></div>
   </section>
 </div>
-<div id="banner" class="banner" style="display:none"></div>
 
 <script>
 "use strict";
-// SINGLE CSV ENDPOINT BY GID
-var CSV_URL = "https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/export?format=csv&gid=2027199769";
-var FULL_REFRESH_MS = 300000;
 
-var lastSig=null, rowsCache=[], busy=false, rowsAll=[], rows=[], trendChart=null;
+// CSV по GID (ваш лист TMS): делайте Anyone with the link → Viewer
+const CSV_URL="https://docs.google.com/spreadsheets/d/1yJIieOP9u4LAj1tizjOKtzGoHcTQwTVslj5fQ3nGMKA/export?format=csv&gid=2027199769";
+const REFRESH_MS=300000;
 
-function setStatus(t){var s=document.getElementById("status"); if(s) s.textContent=t;}
-function showBanner(t){var b=document.getElementById("banner"); b.textContent=t; b.style.display="block";}
-function hideBanner(){var b=document.getElementById("banner"); b.style.display="none";}
+let lastSig=null, cache=[], busy=false, all=[], rows=[], chart=null;
 
-function money(n){return isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});}
-function numUSD(s){if(s==null)return 0;var m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\\d+(?:\\.\\d+)?/);return m?Number(m[0]):0;}
-function toDate(s){if(!s)return null;var t=String(s).replace(/\uFEFF/g,"").trim();
-  var m=t.match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{2,4})/); if(m) return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
-  m=t.match(/(\\d{4})-(\\d{2})-(\\d{2})/); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
-  var d=new Date(t); return isNaN(d)?null:d;}
-function byDateDesc(a,b){return (b._date?b._date.getTime():0)-(a._date?a._date.getTime():0);}
-function strHash(s){var h=0;for(var i=0;i<s.length;i++){h=((h<<5)-h+s.charCodeAt(i))|0;}return(h>>>0).toString(16);}
-function normalizeLink(s){if(!s)return"";s=String(s).trim();return /^https?:\\/\\//i.test(s)?s:"";}
-function normKey(k){return String(k||"").toLowerCase().replace(/[\\uFEFF\\s_-]+/g,"").replace(/[^a-z0-9]/g,"");}
-
-function pickField(row, vars){var map={},ks=Object.keys(row||{});for(var i=0;i<ks.length;i++)map[normKey(ks[i])]=ks[i];
-  for(var j=0;j<vars.length;j++){var nk=normKey(vars[j]); if(map[nk]!==undefined) return row[map[nk]];
-    for(var k in map){if(k.indexOf(nk)!==-1||nk.indexOf(k)!==-1) return row[map[k]];}
-  } return undefined;}
-
-function parseRows(txt){
-  var parsed=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
-  var data=(parsed.data||[]).filter(function(x){return x&&Object.keys(x).length;});
-  var list=data.map(function(r){
-    var d=toDate(pickField(r,["Date"]));
-    return { Date: pickField(r,["Date"]), Asset: pickField(r,["Asset"]),
-      Repair: pickField(r,["Repair","Description"]), Total: numUSD(pickField(r,["Total Amount","Total","Amount"])),
-      PaidBy: pickField(r,["PaidBy","Paid By"]), ReportedBy: pickField(r,["ReportedBy","Reporter"]),
-      InvoiceLink: normalizeLink(pickField(r,["InvoiceLink","Invoice","Link"])), Comments: pickField(r,["Comments","Notes"]), _date:d };
-  }).filter(function(r){return r._date;});
-  return list;
+const $=s=>document.querySelector(s);
+const money=n=>isNaN(n)?"—":Number(n).toLocaleString(undefined,{style:"currency",currency:"USD",maximumFractionDigits:2});
+const normKey=k=>String(k||"").toLowerCase().replace(/[\uFEFF\s_-]+/g,"").replace(/[^a-z0-9]/g,"");
+function toDate(s){
+  if(!s)return null; const t=String(s).replace(/\uFEFF/g,"").trim();
+  let m=/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/.exec(t); if(m) return new Date((+m[3]<100?2000+ +m[3]:+m[3]),+m[1]-1,+m[2]);
+  m=/(\d{4})-(\d{2})-(\d{2})/.exec(t); if(m) return new Date(+m[1],+m[2]-1,+m[3]);
+  const d=new Date(t); return isNaN(d)?null:d;
 }
+function numUSD(s){ if(s==null) return 0; const m=String(s).replace(/\uFEFF/g,"").replace(/,/g,"").match(/-?\d+(\.\d+)?/); return m?Number(m[0]):0; }
+function pick(row, names){
+  const map={}; Object.keys(row||{}).forEach(k=>map[normKey(k)]=k);
+  for(const n of names){ const nk=normKey(n); if(map[nk]!=null) return row[map[nk]];
+    for(const k in map){ if(k.includes(nk)||nk.includes(k)) return row[map[k]]; } }
+  return undefined;
+}
+function firstURL(obj){
+  const urlRe=/https?:\/\/[^\s,"]+/i;
+  const fields=Object.values(obj||{}).map(v=>String(v||""));
+  for(const v of fields){ const m=v.match(urlRe); if(m) return m[0]; }
+  return "";
+}
+function parseCSV(txt){
+  const p=Papa.parse(txt,{header:true,dynamicTyping:false,skipEmptyLines:true});
+  return (p.data||[]).filter(r=>r&&Object.keys(r).length).map(r=>{
+    const d=toDate(pick(r,["Date"]));
+    const link=pick(r,["InvoiceLink","Invoice","Link"])||firstURL(r);
+    return { Date: pick(r,["Date"]), Asset: pick(r,["Asset"]), Repair: pick(r,["Repair","Description"]),
+      Total: numUSD(pick(r,["Total","Total Amount","Amount"])), PaidBy: pick(r,["PaidBy","Paid By"]),
+      ReportedBy: pick(r,["ReportedBy","Reporter"]), InvoiceLink: link, Comments: pick(r,["Comments","Notes"]), _date:d };
+  }).filter(r=>r._date);
+}
+function hash(s){let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0; return (h>>>0).toString(16);}
+function byDateDesc(a,b){return (b._date?b._date.getTime():0)-(a._date?a._date.getTime():0);}
+function setStatus(t){ const el=$("#status"); if(el) el.textContent=t; }
 
-function toDaily(rs){var m={},i;for(i=0;i<rs.length;i++){var d=rs[i]._date.toISOString().slice(0,10);m[d]=(m[d]||0)+rs[i].Total;}
-  var labels=Object.keys(m).sort();return{labels:labels,data:labels.map(function(l){return m[l];})};}
+async function fetchCSV(){
+  const r=await fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"});
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  const txt=await r.text();
+  if(/^\s*</.test(txt)) throw new Error("Sheet is not public");
+  return txt;
+}
 
 function renderKPIs(){
-  var now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
-  var month=0,week=0; for(var i=0;i<rows.length;i++){if(rows[i]._date>=ms)month+=rows[i].Total; if(rows[i]._date>=ws)week+=rows[i].Total;}
-  document.getElementById("kpi-total").textContent=rows.length.toLocaleString();
-  document.getElementById("kpi-month").textContent=money(month);
-  document.getElementById("kpi-week").textContent=money(week);
+  const now=new Date(), ms=new Date(now.getFullYear(),now.getMonth(),1), ws=new Date(now.getFullYear(),now.getMonth(),now.getDate()-7);
+  let m=0,w=0; rows.forEach(r=>{ if(r._date>=ms) m+=r.Total; if(r._date>=ws) w+=r.Total; });
+  $("#kpi-total").textContent=rows.length.toLocaleString();
+  $("#kpi-month").textContent=money(m);
+  $("#kpi-week").textContent=money(w);
 }
+function toDaily(rs){const m={}; rs.forEach(r=>{const d=r._date.toISOString().slice(0,10); m[d]=(m[d]||0)+r.Total;});
+  const labels=Object.keys(m).sort(); return {labels, data:labels.map(l=>m[l])};}
 function renderChart(){
-  var ctx=document.getElementById("chartTrend").getContext("2d");
-  if(trendChart) try{trendChart.destroy();}catch(e){}
-  var s=toDaily(rows); var gl=ctx.createLinearGradient(0,0,220,0); gl.addColorStop(0,"#ff3b30"); gl.addColorStop(1,"#b5140b");
-  var gf=ctx.createLinearGradient(0,0,0,240); gf.addColorStop(0,"rgba(255,59,48,.22)"); gf.addColorStop(1,"rgba(255,255,255,0)");
-  trendChart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gl,backgroundColor:gf}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:function(c){return "$"+Number(c.parsed.y).toLocaleString();}}}},
-      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:function(v){return "$"+v.toLocaleString();}},grid:{color:"rgba(255,255,255,.06)"}}}});
+  const ctx=$("#chart").getContext("2d"); if(chart) try{chart.destroy();}catch(e){}
+  const s=toDaily(rows); const gl=ctx.createLinearGradient(0,0,220,0); gl.addColorStop(0,"#ff3b30"); gl.addColorStop(1,"#b5140b");
+  const gf=ctx.createLinearGradient(0,0,0,240); gf.addColorStop(0,"rgba(255,59,48,.22)"); gf.addColorStop(1,"rgba(255,255,255,0)");
+  chart=new Chart(ctx,{type:"line",data:{labels:s.labels,datasets:[{data:s.data,fill:true,tension:.35,borderWidth:2,borderColor:gl,backgroundColor:gf}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:"rgba(15,18,25,.9)",borderColor:"#1f2330",borderWidth:1,padding:12,cornerRadius:10,callbacks:{label:c=>"$"+Number(c.parsed.y).toLocaleString()}}),
+      scales:{x:{ticks:{color:"#9aa0a6"},grid:{display:false}},y:{ticks:{color:"#9aa0a6",callback:v=>"$"+v.toLocaleString()},grid:{color:"rgba(255,255,255,.06)"}}}});
 }
-function getRange(){var a=document.querySelector("#rangeSeg .active");return a?a.getAttribute("data-range"):"30";}
 function applyFilters(){
-  var rv=getRange(), q=(document.getElementById("assetSearch").value||"").trim().toLowerCase();
-  var now=new Date(), from=new Date(now.getFullYear(),now.getMonth(),now.getDate()-(rv==="7"?7:30));
-  function match(r){ if(!q)return true; var a=String(r.Asset||"").toLowerCase(), rep=String(r.Repair||"").toLowerCase(), ds=r._date.toLocaleDateString().toLowerCase();
-    var amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total); return a.indexOf(q)>-1||rep.indexOf(q)>-1||ds.indexOf(q)>-1||amtStr.indexOf(q)>-1||amtNum.indexOf(q)>-1; }
-  rows=rowsAll.filter(function(r){return r._date>=from&&match(r);});
+  const range=($("#rangeSeg .active")||{}).dataset?.range||"30";
+  const q=($("#search").value||"").trim().toLowerCase();
+  const from=new Date(); from.setDate(from.getDate()-(range==="7"?7:30));
+  const match=r=>{
+    if(!q) return true;
+    const ds=r._date.toLocaleDateString().toLowerCase();
+    const amtStr=money(r.Total).toLowerCase(), amtNum=String(r.Total);
+    return String(r.Asset||"").toLowerCase().includes(q)||
+           String(r.Repair||"").toLowerCase().includes(q)||
+           ds.includes(q)||amtStr.includes(q)||amtNum.includes(q);
+  };
+  rows=all.filter(r=>r._date>=from&&match(r));
 }
 function renderTable(){
-  var tb=document.querySelector("#table tbody"); tb.innerHTML="";
-  rows.slice().sort(byDateDesc).forEach(function(r){
-    var tr=document.createElement("tr");
-    var link=r.InvoiceLink?'<a href="'+r.InvoiceLink+'" target="_blank" rel="noopener">open</a>':"";
-    tr.innerHTML='<td>'+r._date.toLocaleDateString()+'</td><td>'+(r.Asset||'')+'</td><td>'+(r.Repair||'')+'</td>'+
-      '<td class="right">'+money(r.Total)+'</td><td>'+(r.PaidBy||'')+'</td><td>'+(r.ReportedBy||'')+'</td><td>'+link+'</td>';
+  const tb=$("#table tbody"); tb.innerHTML="";
+  rows.slice().sort(byDateDesc).forEach(r=>{
+    const tr=document.createElement("tr");
+    const link=r.InvoiceLink?`<a href="${r.InvoiceLink}" target="_blank" rel="noopener">open</a>`:"";
+    tr.innerHTML=`<td>${r._date.toLocaleDateString()}</td><td>${r.Asset||""}</td><td>${r.Repair||""}</td>
+      <td class="right">${money(r.Total)}</td><td>${r.PaidBy||""}</td><td>${r.ReportedBy||""}</td><td>${link}</td>`;
     tb.appendChild(tr);
   });
 }
 
-function refreshAll(force){
-  if(busy) return; busy=true; setStatus(force?'Refreshing…':'Loading…'); hideBanner();
-  fetch(CSV_URL+"&v="+Date.now(),{cache:"no-store"}).then(function(r){
-    if(!r.ok) throw new Error("HTTP "+r.status); return r.text();
-  }).then(function(txt){
-    if(/^\s*</.test(txt)){ showBanner("Google Sheet закрыт. Включи Share: Anyone with the link → Viewer."); throw new Error("HTML instead of CSV"); }
-    var sig=strHash(txt);
-    if(force||lastSig!==sig){ lastSig=sig; var parsed=parseRows(txt); if(parsed.length) rowsAll=rowsCache=parsed; applyFilters(); renderKPIs(); renderChart(); renderTable(); }
-    setStatus("Updated "+new Date().toLocaleTimeString()+" • rows "+rowsAll.length);
-  }).catch(function(e){
-    if(rowsCache.length){ rowsAll=rowsCache; applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Offline • cached data"); }
-    else{ setStatus("Error: "+e.message); }
-  }).finally(function(){ busy=false; });
+async function refresh(force){
+  if(busy) return; busy=true; setStatus(force?"Refreshing…":"Loading…");
+  try{
+    const txt=await fetchCSV(); const sig=hash(txt);
+    if(force||sig!==lastSig){ lastSig=sig; const parsed=parseCSV(txt); if(parsed.length) all=cache=parsed; applyFilters(); renderKPIs(); renderChart(); renderTable(); }
+    setStatus("Updated "+new Date().toLocaleTimeString()+" • rows "+all.length);
+  }catch(e){
+    if(cache.length){ all=cache; applyFilters(); renderKPIs(); renderChart(); renderTable(); setStatus("Offline • cached"); }
+    else setStatus("Error: "+e.message);
+  }finally{ busy=false; }
 }
 
-document.getElementById("refreshBtn").addEventListener("click",function(){refreshAll(true);});
-document.getElementById("rangeSeg").addEventListener("click",function(e){
-  var b=e.target.closest("button"); if(!b)return;
-  Array.prototype.forEach.call(document.querySelectorAll("#rangeSeg button"),function(x){x.classList.remove("active");});
-  b.classList.add("active"); applyFilters(); renderKPIs(); renderChart(); renderTable();
-});
-document.getElementById("assetSearch").addEventListener("input",function(){applyFilters(); renderKPIs(); renderChart(); renderTable();});
-document.addEventListener("visibilitychange",function(){if(document.visibilityState==="visible")refreshAll(true);});
-window.addEventListener("DOMContentLoaded",function boot(i){i=i||0; if(window.Papa&&window.Chart){refreshAll(true); setInterval(function(){refreshAll(true);},FULL_REFRESH_MS);} else if(i<60){setStatus("Boot… "+i); setTimeout(function(){boot(i+1);},250);} else {setStatus("Error: libs not loaded");}});
+// UI
+$("#refreshBtn").addEventListener("click",()=>refresh(true));
+$("#rangeSeg").addEventListener("click",e=>{const b=e.target.closest("button"); if(!b) return; document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("active")); b.classList.add("active"); applyFilters(); renderKPIs(); renderChart(); renderTable();});
+$("#search").addEventListener("input",()=>{applyFilters(); renderKPIs(); renderChart(); renderTable();});
+document.addEventListener("visibilitychange",()=>{ if(document.visibilityState==="visible") refresh(true); });
+window.addEventListener("DOMContentLoaded",()=>{ const wait=()=>{ if(window.Papa&&window.Chart){ refresh(true); setInterval(()=>refresh(true),REFRESH_MS); } else setTimeout(wait,200); }; wait(); });
 </script>
 </body></html>
